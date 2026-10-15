@@ -1,0 +1,73 @@
+---
+title: Acquire changing capabilities
+description:
+  Capture a coherent operation set and release the resources behind it.
+---
+
+Use `modules` for operations whose registration stays fixed. Use `sources` when
+the host must acquire a current Computer, Connection or other changing
+capability. Both contribute to the operation graph captured by a lease.
+
+The [quick start](../../quickstart/) uses a fixed module. The
+[API reference](../../api/entry/) describes `CapabilitySource`, its acquisition
+context and the `Runtime` and `Lease` contracts.
+
+## Implement a source
+
+Each source has a stable, secret-free `id` and an asynchronous `acquire`
+function. Mycelium passes that function the following context:
+
+| Field        | Source responsibility                                                                                                                         |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `session`    | The `MyceliumOptions.session` supplied by the host to `Mycelium.make`. Project capabilities for this Session; absent for a session-free host. |
+| `signal`     | Stop acquisition when cancelled and account for any resources already opened.                                                                 |
+| `invalidate` | Call when the captured projection becomes stale.                                                                                              |
+
+Return a `snapshot` with a secret-free `version` and its `modules`, alongside an
+asynchronous `release` function. The release owns subscriptions, connections and
+adapters acquired for this snapshot. Do not return a live collection that the
+host mutates after acquisition.
+
+Source IDs and versions must be nonempty strings of at most 160 characters.
+Source IDs must be unique. Mycelium admits at most 128 sources and 1,000 modules
+across static registrations and source snapshots. These are acquisition bounds,
+not lifetime quotas on operations.
+
+## Keep a lease for the run
+
+1. Construct the runtime with `Mycelium.make`, supplying the sources and a
+   [sandbox](../sandbox-contract/).
+2. Await `runtime.acquire()` to capture a coherent revision. The lease exposes
+   `revision`, `catalog` and one `executeTool`.
+3. Keep that lease until the model run or direct execution settles. Its catalog
+   and bindings describe the same captured revision.
+4. Await `lease.release()` on both success and failure. Close the runtime when
+   the host no longer needs it, even if the run failed.
+
+The tool is Effect-native, including when acquired through the Promise runtime.
+Compose it with `muleEffect.run` from `@fungi.computer/mule/effect`. An Effect
+host can instead use Mycelium's [scoped API](../../api/effect/) to own cleanup.
+
+## Invalidate without changing an active run
+
+Suppose a source captures Computer A at version `v1`. A run acquires lease L1.
+The host then changes its current Computer and calls the acquired source's
+`invalidate` callback. The next acquisition builds a new coherent graph; L1
+continues to see its original snapshot. A new lease can see the replacement
+without changing bindings halfway through L1's execution.
+
+Invalidation is not revocation. A captured graph still needs the host's final
+authority check before an operation accesses a resource. Membership, credentials
+and durable relationships remain host-owned.
+
+## Handle acquisition and cleanup failures
+
+Mycelium acquires sources in stable ID order and unwinds acquired resources in
+reverse order if a candidate cannot be installed. A failed acquisition must not
+be presented as an empty successful capability set.
+
+`MyceliumSourceError` identifies the source and the `acquire` or `release`
+phase. Preserve cleanup failures as failures. `runtime.close()` stops new
+acquisitions and waits for every held lease to be released before its cleanup
+can finish. Release all leases before or alongside awaiting `runtime.close()`;
+awaiting close first while still holding a lease will not settle.

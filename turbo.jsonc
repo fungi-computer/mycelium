@@ -1,0 +1,8 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    // The Workers entry imports this package's built, platform-neutral subpaths.
+    "lint": { "dependsOn": ["build"] },
+  },
+}

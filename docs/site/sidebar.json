@@ -1,0 +1,51 @@
+[
+  {
+    "label": "Overview",
+    "link": "/"
+  },
+  {
+    "label": "Install",
+    "link": "/install/"
+  },
+  {
+    "label": "Quickstart",
+    "link": "/quickstart/"
+  },
+  {
+    "label": "Concepts",
+    "link": "/concepts/"
+  },
+  {
+    "label": "Integration guides",
+    "items": [
+      {
+        "label": "Acquire changing capabilities",
+        "link": "/guides/capability-sources/"
+      },
+      {
+        "label": "Implement the sandbox boundary",
+        "link": "/guides/sandbox-contract/"
+      }
+    ]
+  },
+  {
+    "label": "Examples",
+    "link": "/examples/"
+  },
+  {
+    "label": "API reference",
+    "sigil": "list",
+    "collapsed": false,
+    "items": [
+      {
+        "autogenerate": {
+          "directory": "api"
+        }
+      }
+    ]
+  },
+  {
+    "label": "Status",
+    "link": "/status/"
+  }
+]

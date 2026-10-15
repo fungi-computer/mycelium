@@ -1,0 +1,90 @@
+---
+title: Implement the sandbox boundary
+description:
+  Understand the request, namespace mapping, cancellation and result contract.
+---
+
+Mycelium validates operations and admits their bindings. Your host supplies
+`Sandbox.execute(request, signal)`, which evaluates the submitted program and
+returns its result. Mycelium does not provision an isolated runtime for you.
+
+The [quick start](../../quickstart/) uses `directSandbox` to call a known
+binding. That helper ignores submitted code and runs with host privileges. It is
+useful for trusted tests, and **does not provide isolation or execute
+model-authored programs**. `rejectingSandbox` is the corresponding deterministic
+refusal helper. Both live in the public
+[`/testing` entrypoint](../../api/testing/).
+
+## Read the complete request
+
+The [root API](../../api/entry/) owns `SandboxRequest` and `Sandbox`. The
+request passed to a real evaluator contains:
+
+| Field            | Meaning                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------- |
+| `executionId`    | Fresh identity shared by this execution and its operation calls.                                        |
+| `code`           | Model-authored JavaScript to evaluate inside the host's sandbox.                                        |
+| `timeoutMs`      | Effective execution budget in milliseconds. The separate signal remains authoritative for cancellation. |
+| `bindings`       | Transport aliases mapped to flat relative operation paths and their admitted callbacks.                 |
+| `namespacePaths` | Logical namespace path for each alias; omission means the path is the alias itself.                     |
+| `modules`        | Alias-to-stable-module-ID mapping. Mycelium always supplies this field.                                 |
+| `sessionId`      | Session identity, or `null` for session-free executions. Mycelium always supplies this field.           |
+
+`Sandbox.adapter` and `Sandbox.buildSha` identify the transport and source
+revision in operator evidence. They are metadata on the adapter, not extra guest
+authority.
+
+## Project admitted bindings into the guest
+
+Use the public [sandbox guest helpers](../../api/sandbox-guest/) to project
+logical namespaces from the request. `sandboxGuestProgram` provides the guest
+program; `sandboxProviderOperationName` maps names for provider transports that
+cannot use dotted operation names. Preserve the stable module mapping and the
+Session identity when forwarding calls.
+
+The [wire contract](../../api/sandbox-wire/) owns serialized envelopes. Use its
+maintained decoders where messages cross your transport. Do not serialize host
+callback functions as guest data or expose credentials through namespace
+metadata. A binding invokes the admitted operation, including input validation
+and its gate; the host still checks current authority before external access.
+
+## Settle backing work on cancellation
+
+Observe the signal while starting and running the program. A sandbox Promise
+must account for backing work when it settles. Returning early while a remote
+job keeps running does not prove cancellation.
+
+Mycelium applies an execution deadline and a bounded cancellation
+acknowledgement grace, configured by `execution.timeoutMs` and
+`execution.abortGraceMs`. If backing work does not acknowledge cancellation, the
+failure reports `acknowledged: false`. Preserve that distinction in operator
+reporting.
+
+For an Effect host adapting a Promise sandbox, the public Effect entrypoint's
+`fromTypedSandbox` waits for the Promise to settle when interrupted. It does not
+terminate a Worker or remote process on the host's behalf.
+
+## Return a bounded result and preserve failures
+
+Return the program's value; Mycelium admits only bounded JSON results across the
+execution boundary. A guest should explicitly return its final value. Oversized
+and non-JSON results are failures, not successful empty responses.
+
+Use the [sandbox boundary helpers](../../api/sandbox-boundary/) and
+[typed failures](../../api/sandbox-failure/) for syntax, guest, capability,
+transport, deadline and cancellation outcomes. Unknown exceptions remain
+`Unknown`. `sandboxFailureMessage` supplies the bounded model-facing message;
+`onSandboxFailure` receives operator evidence. Keep host diagnostics out of the
+guest result.
+
+## Compose with an Agent host
+
+A host supplies the sandbox alongside static modules or
+[capability sources](../capability-sources/). A lease's `executeTool` is the
+single Effect-native tool passed to Mule. Discovery and inner operations stay
+behind it. Hold the lease until the run settles, then release it.
+
+Shiitake extensions can contribute Mycelium tools under the `run_tools` grant.
+The Agent host still owns the sandbox and final resource authorization. A
+successful `directSandbox` test proves registration and orchestration; qualify
+your real adapter's isolation, namespace mapping and cancellation separately.

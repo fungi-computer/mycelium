@@ -1,0 +1,33 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "extends": "../../tooling/docs/typedoc.base.json",
+  "name": "@fungi.computer/mycelium",
+  "entryPoints": [
+    "src/index.ts",
+    "src/effect.ts",
+    "src/define.ts",
+    "src/remote.ts",
+    "src/semaphore-transition.ts",
+    "src/sandbox-guest.ts",
+    "src/sandbox-wire.ts",
+    "src/sandbox-failure.ts",
+    "src/sandbox-boundary.ts",
+    "src/testing.ts",
+    "src/workers/index.ts",
+    "src/mcp.ts",
+    "src/sandbox.ts"
+  ],
+  "tsconfig": "tsconfig.docs.json",
+  "out": "docs/api",
+  "requiredToBeDocumented": [
+    "Enum",
+    "EnumMember",
+    "Variable",
+    "Function",
+    "Class",
+    "Interface",
+    "Method",
+    "Accessor",
+    "TypeAlias"
+  ]
+}

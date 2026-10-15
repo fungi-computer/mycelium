@@ -1,0 +1,135 @@
+{
+  "name": "@fungi.computer/mycelium",
+  "version": "0.0.1",
+  "author": "Levi <levi@technomancy.dev>",
+  "description": "Effect-native scoped capability lifecycle with a Zod-authored execute door",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./define": {
+      "types": "./dist/define.d.ts",
+      "import": "./dist/define.js"
+    },
+    "./effect": {
+      "types": "./dist/effect.d.ts",
+      "import": "./dist/effect.js"
+    },
+    "./remote": {
+      "types": "./dist/remote.d.ts",
+      "import": "./dist/remote.js"
+    },
+    "./semaphore-transition": {
+      "types": "./dist/semaphore-transition.d.ts",
+      "import": "./dist/semaphore-transition.js"
+    },
+    "./sandbox-guest": {
+      "types": "./dist/sandbox-guest.d.ts",
+      "import": "./dist/sandbox-guest.js"
+    },
+    "./sandbox-wire": {
+      "types": "./dist/sandbox-wire.d.ts",
+      "import": "./dist/sandbox-wire.js"
+    },
+    "./sandbox-failure": {
+      "types": "./dist/sandbox-failure.d.ts",
+      "import": "./dist/sandbox-failure.js"
+    },
+    "./sandbox-boundary": {
+      "types": "./dist/sandbox-boundary.d.ts",
+      "import": "./dist/sandbox-boundary.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    },
+    "./workers": {
+      "types": "./dist/workers/index.d.ts",
+      "import": "./dist/workers/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp.d.ts",
+      "import": "./dist/mcp.js"
+    },
+    "./sandbox": {
+      "types": "./dist/sandbox.d.ts",
+      "import": "./dist/sandbox.js"
+    }
+  },
+  "imports": {
+    "#build-identity": {
+      "node": "./dist/internal/build-identity.node.js",
+      "default": "./dist/internal/build-identity.js"
+    }
+  },
+  "files": [
+    "dist",
+    "docs/api",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES"
+  ],
+  "scripts": {
+    "lint": "eslint src test --max-warnings=0 && ../../node_modules/.bin/oxlint --config ../../oxlint.config.ts --deny-warnings src test",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p src/workers/tsconfig.json --noEmit",
+    "build": "pnpm run clean && tsc -p tsconfig.build.json && tsc -p src/workers/tsconfig.json",
+    "clean": "node --input-type=module --eval \"import { rm } from 'node:fs/promises'; await rm('dist', { recursive: true, force: true });\"",
+    "test": "vitest run && pnpm run test:workers",
+    "test:workers": "vitest run --config test/vitest.workers.config.mts",
+    "docs": "tsx ../../tooling/repository/src/docs/cli.ts check --root ../..",
+    "docs:write": "tsx ../../tooling/repository/src/docs/cli.ts write --root ../..",
+    "pack": "pnpm run build && node scripts/stamp-build.mjs && mkdir -p ../../.botanical/mycelium-pack && pnpm pack --pack-destination ../../.botanical/mycelium-pack",
+    "smoke": "node --input-type=module -e \"import('./dist/index.js').then(({Mycelium}) => { if (!Mycelium) process.exit(1); })\"",
+    "stranger": "tsx ../../tooling/repository/src/artifacts/cli.ts --repo-root ../.. .",
+    "format:check": "node ../../tooling/repository/scripts/format-package-check.mjs",
+    "lint:anti-slop": "node ../../tooling/repository/scripts/lint-package-anti-slop.mjs"
+  },
+  "dependencies": {
+    "@fungi.computer/cairn": "workspace:*",
+    "@fungi.computer/forage": "workspace:*",
+    "@fungi.computer/mule": "workspace:*",
+    "@fungi.computer/puffball": "workspace:*",
+    "effect": "4.0.2",
+    "zod": "4.4.3",
+    "acorn": "8.18.0",
+    "@cloudflare/codemode": "0.5.1",
+    "@modelcontextprotocol/server": "2.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.1.2",
+    "@types/node": "24.13.3",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11",
+    "@cloudflare/workers-types": "5.20260828.1",
+    "@modelcontextprotocol/client": "2.0.0"
+  },
+  "botanical": {
+    "role": "package",
+    "operations": {
+      "lint": "required",
+      "typecheck": "required",
+      "build": "required",
+      "test": "required",
+      "docs": "required",
+      "pack": "required",
+      "smoke": "required",
+      "stranger": "required"
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fungi-computer/mycelium.git"
+  },
+  "fungi": {
+    "build": {
+      "typescript": [
+        "src/workers/tsconfig.json"
+      ]
+    }
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "expectedTarballFiles": [
+    "package/LICENSE",
+    "package/README.md",
+    "package/THIRD_PARTY_NOTICES",
+    "package/dist/access.d.ts",
+    "package/dist/access.js",
+    "package/dist/capability-source.d.ts",
+    "package/dist/capability-source.js",
+    "package/dist/compiler.d.ts",
+    "package/dist/compiler.js",
+    "package/dist/define.d.ts",
+    "package/dist/define.js",
+    "package/dist/effect.d.ts",
+    "package/dist/effect.js",
+    "package/dist/errors.d.ts",
+    "package/dist/errors.js",
+    "package/dist/execute-tool.d.ts",
+    "package/dist/execute-tool.js",
+    "package/dist/image-collector.d.ts",
+    "package/dist/image-collector.js",
+    "package/dist/index.d.ts",
+    "package/dist/index.js",
+    "package/dist/internal/build-identity.d.ts",
+    "package/dist/internal/build-identity.js",
+    "package/dist/internal/build-identity.node.d.ts",
+    "package/dist/internal/build-identity.node.js",
+    "package/dist/internal/execution-lifecycle.d.ts",
+    "package/dist/internal/execution-lifecycle.js",
+    "package/dist/internal/mcp-principal.d.ts",
+    "package/dist/internal/mcp-principal.js",
+    "package/dist/mcp-catalog.d.ts",
+    "package/dist/mcp-catalog.js",
+    "package/dist/mcp.d.ts",
+    "package/dist/mcp.js",
+    "package/dist/operation-schema.d.ts",
+    "package/dist/operation-schema.js",
+    "package/dist/promise-facade.d.ts",
+    "package/dist/promise-facade.js",
+    "package/dist/registration.d.ts",
+    "package/dist/registration.js",
+    "package/dist/remote.d.ts",
+    "package/dist/remote.js",
+    "package/dist/runtime.d.ts",
+    "package/dist/runtime.js",
+    "package/dist/sandbox-boundary.d.ts",
+    "package/dist/sandbox-boundary.js",
+    "package/dist/sandbox-failure-event.d.ts",
+    "package/dist/sandbox-failure-event.js",
+    "package/dist/sandbox-failure.d.ts",
+    "package/dist/sandbox-failure.js",
+    "package/dist/sandbox-guest.d.ts",
+    "package/dist/sandbox-guest.js",
+    "package/dist/sandbox-wire.d.ts",
+    "package/dist/sandbox-wire.js",
+    "package/dist/sandbox.d.ts",
+    "package/dist/sandbox.js",
+    "package/dist/semaphore-transition.d.ts",
+    "package/dist/semaphore-transition.js",
+    "package/dist/source-runtime.d.ts",
+    "package/dist/source-runtime.js",
+    "package/dist/testing.d.ts",
+    "package/dist/testing.js",
+    "package/dist/workers/index.d.ts",
+    "package/dist/workers/index.js",
+    "package/docs/api/README.md",
+    "package/docs/api/define.md",
+    "package/docs/api/effect.md",
+    "package/docs/api/index.md",
+    "package/docs/api/mcp.md",
+    "package/docs/api/remote.md",
+    "package/docs/api/sandbox-boundary.md",
+    "package/docs/api/sandbox-failure.md",
+    "package/docs/api/sandbox-guest.md",
+    "package/docs/api/sandbox-wire.md",
+    "package/docs/api/sandbox.md",
+    "package/docs/api/semaphore-transition.md",
+    "package/docs/api/testing.md",
+    "package/docs/api/workers.md",
+    "package/package.json"
+  ],
+  "localDependencies": ["../cairn", "../forage", "../mule", "../puffball"],
+  "consumerDevDependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0"
+  },
+  "runtimeFixture": "test/stranger/runtime.mjs",
+  "typecheckFixture": "test/stranger/consumer.mts",
+  "docs": {
+    "sigil": "listAgents",
+    "home": {
+      "lead": "Gives an AI Agent typed operations behind one execute tool, so your Zod schemas gate every call and the Agent can only do what you register.",
+      "example": {
+        "file": "home.ts",
+        "title": "Run one registered operation",
+        "caption": "Registers one operation, runs it through the execute tool with a direct test sandbox, and prints the result."
+      },
+      "ladder": {
+        "start": [
+          {
+            "title": "Quickstart",
+            "href": "/quickstart/",
+            "description": "Register one operation and call it through the execute tool."
+          },
+          {
+            "title": "Operations and discovery",
+            "href": "/concepts/#operations-and-discovery",
+            "description": "How input validation, module identity and Forage discovery fit together."
+          }
+        ],
+        "tasks": [
+          {
+            "title": "Declare an operation",
+            "href": "/api/entry/",
+            "description": "Mycelium.operation, Mycelium.module and the Promise runtime types."
+          },
+          {
+            "title": "Build a sandbox adapter",
+            "href": "/api/sandbox-guest/",
+            "description": "Parse a sandbox request and project its namespaced bindings."
+          },
+          {
+            "title": "Report a sandbox failure",
+            "href": "/api/sandbox-failure/",
+            "description": "The typed failure channel and the bounded message sent to the model."
+          },
+          {
+            "title": "Switch to the Effect API",
+            "href": "/api/effect/",
+            "description": "The scoped Effect runtime behind the Promise facade."
+          }
+        ],
+        "reference": [
+          {
+            "title": "API reference",
+            "href": "/api/",
+            "description": "Root, ./effect, ./testing and the sandbox-adapter subpaths."
+          },
+          {
+            "title": "Install",
+            "href": "/install/",
+            "description": "Peer dependencies on Zod, Effect and acorn, and the Node.js version."
+          },
+          {
+            "title": "Status and limits",
+            "href": "/status/",
+            "description": "What Mycelium does not own, and its errors and license."
+          }
+        ]
+      }
+    }
+  }
+}
