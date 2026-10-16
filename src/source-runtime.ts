@@ -49,11 +49,13 @@ function compareCodeUnits(left: string, right: string): number {
 }
 
 const maximumCapabilitySources = 128;
-const sourceIdSchema = z.string().min(1).max(160);
-const sourceSnapshotSchema = z.object({
-  version: z.string().min(1).max(160),
-  modules: z.array(z.unknown()),
-});
+const sourceIdSchema = z.lazy(() => z.string().min(1).max(160));
+const sourceSnapshotSchema = z.lazy(() =>
+  z.object({
+    version: z.string().min(1).max(160),
+    modules: z.array(z.unknown()),
+  }),
+);
 const maximumCandidateModules = 1_000;
 
 function validateSources(

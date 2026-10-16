@@ -3,18 +3,20 @@ import { z } from "zod";
 import { sandboxSourceError } from "./sandbox-boundary.js";
 
 /** Closed guest envelope: guest exceptions cannot masquerade as host failures. */
-export const sandboxGuestResultSchema = z.discriminatedUnion("ok", [
-  z.strictObject({ ok: z.literal(true), value: z.unknown() }),
-  z.strictObject({
-    ok: z.literal(false),
-    error: z.strictObject({
-      kind: z.literal("guest_threw"),
-      name: z.string().max(80),
-      message: z.string().max(512),
-      transportMessage: z.string().max(512).optional(),
+export const sandboxGuestResultSchema = z.lazy(() =>
+  z.discriminatedUnion("ok", [
+    z.strictObject({ ok: z.literal(true), value: z.unknown() }),
+    z.strictObject({
+      ok: z.literal(false),
+      error: z.strictObject({
+        kind: z.literal("guest_threw"),
+        name: z.string().max(80),
+        message: z.string().max(512),
+        transportMessage: z.string().max(512).optional(),
+      }),
     }),
-  }),
-]);
+  ]),
+);
 
 /** Locate syntax in the submitted code, accounting for Codemode's normalization. */
 export function submittedSourceLocation(
@@ -55,9 +57,9 @@ export function submittedSourceLocation(
 }
 
 /** Parsed guest namespace segments; callbacks never cross this wire. */
-export const sandboxNamespaceSegmentSchema = z
-  .string()
-  .regex(/^[A-Za-z][A-Za-z0-9_]*$/u);
+export const sandboxNamespaceSegmentSchema = z.lazy(() =>
+  z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/u),
+);
 /** A transport alias is interpolated as a strict JavaScript binding identifier. */
 export const sandboxTransportAliasSchema = sandboxNamespaceSegmentSchema.refine(
   (alias) => {
@@ -74,15 +76,19 @@ export const sandboxTransportAliasSchema = sandboxNamespaceSegmentSchema.refine(
 );
 
 /** Transport aliases mapped to their logical namespace paths. */
-export const sandboxNamespacePathsSchema = z.record(
-  sandboxTransportAliasSchema,
-  z.array(sandboxNamespaceSegmentSchema).min(1),
+export const sandboxNamespacePathsSchema = z.lazy(() =>
+  z.record(
+    sandboxTransportAliasSchema,
+    z.array(sandboxNamespaceSegmentSchema).min(1),
+  ),
 );
 /** Serializable flat transport table; operation keys may have any namespace depth. */
-export const sandboxBindingNamesSchema = z.record(
-  sandboxTransportAliasSchema,
-  z.array(
-    z.string().regex(/^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)*$/u),
+export const sandboxBindingNamesSchema = z.lazy(() =>
+  z.record(
+    sandboxTransportAliasSchema,
+    z.array(
+      z.string().regex(/^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)*$/u),
+    ),
   ),
 );
 

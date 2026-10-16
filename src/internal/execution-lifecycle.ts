@@ -39,20 +39,19 @@ import type { ExecutionImages } from "../image-collector.js";
 import type { EffectSandbox } from "../runtime.js";
 
 const jsonValueSchema = z.json();
-const jsonScalarSchema = z.union([
-  z.null(),
-  z.string(),
-  z.boolean(),
-  z.number(),
-]);
-const jsonRecordSchema = z.record(z.string(), z.unknown());
-const executionOptionsSchema = z
-  .object({
-    timeoutMs: z.number().int().min(1).max(900_000).optional(),
-    abortGraceMs: z.number().int().min(1).max(30_000).optional(),
-  })
-  .strict()
-  .optional();
+const jsonScalarSchema = z.lazy(() =>
+  z.union([z.null(), z.string(), z.boolean(), z.number()]),
+);
+const jsonRecordSchema = z.lazy(() => z.record(z.string(), z.unknown()));
+const executionOptionsSchema = z.lazy(() =>
+  z
+    .object({
+      timeoutMs: z.number().int().min(1).max(900_000).optional(),
+      abortGraceMs: z.number().int().min(1).max(30_000).optional(),
+    })
+    .strict()
+    .optional(),
+);
 const maximumJsonDepth = 64;
 const maximumSerializedJsonBytes = 256 * 1024;
 const maximumBackingExecutions = 8;

@@ -28,51 +28,60 @@ import {
   type CapabilityDiagnostic,
 } from "./sandbox-failure.js";
 
-const ownedFailureSchema = z.union([
-  z.instanceof(SourceInvalid),
-  z.instanceof(GuestThrew),
-  z.instanceof(DeadlineExceeded),
-  z.instanceof(Cancelled),
-  z.instanceof(DispatchLost),
-  z.instanceof(SandboxCrashed),
-  z.instanceof(BadResponse),
-  z.instanceof(ResultTooLarge),
-  z.instanceof(ResultNotJson),
-  z.instanceof(CapabilityFailed),
-  z.instanceof(Unknown),
-]);
+const ownedFailureSchema = z.lazy(() =>
+  z.union([
+    z.instanceof(SourceInvalid),
+    z.instanceof(GuestThrew),
+    z.instanceof(DeadlineExceeded),
+    z.instanceof(Cancelled),
+    z.instanceof(DispatchLost),
+    z.instanceof(SandboxCrashed),
+    z.instanceof(BadResponse),
+    z.instanceof(ResultTooLarge),
+    z.instanceof(ResultNotJson),
+    z.instanceof(CapabilityFailed),
+    z.instanceof(Unknown),
+  ]),
+);
 
 /** The one interpretation boundary for foreign in-process values and rejections. */
-const foreignValueSchema = z
-  .unknown()
-  .pipe(
-    z.union([
-      z
-        .instanceof(Error)
-        .transform((value) => ({ kind: "error" as const, value })),
-      z.null().transform((value) => ({ kind: "null" as const, value })),
-      z
-        .undefined()
-        .transform((value) => ({ kind: "undefined" as const, value })),
-      z.string().transform((value) => ({ kind: "string" as const, value })),
-      z.boolean().transform((value) => ({ kind: "boolean" as const, value })),
-      z
-        .union([z.number(), z.nan(), z.literal(Infinity), z.literal(-Infinity)])
-        .transform((value) => ({ kind: "number" as const, value })),
-      z.bigint().transform((value) => ({ kind: "bigint" as const, value })),
-      z.symbol().transform((value) => ({ kind: "symbol" as const, value })),
-      z
-        .instanceof(Function)
-        .transform((value) => ({ kind: "function" as const, value })),
-      z
-        .array(z.unknown())
-        .transform((value) => ({ kind: "array" as const, value })),
-      z
-        .union([z.instanceof(Object), z.record(z.string(), z.unknown())])
-        .transform((value) => ({ kind: "object" as const, value })),
-      z.unknown().transform(() => ({ kind: "opaque" as const })),
-    ]),
-  );
+const foreignValueSchema = z.lazy(() =>
+  z
+    .unknown()
+    .pipe(
+      z.union([
+        z
+          .instanceof(Error)
+          .transform((value) => ({ kind: "error" as const, value })),
+        z.null().transform((value) => ({ kind: "null" as const, value })),
+        z
+          .undefined()
+          .transform((value) => ({ kind: "undefined" as const, value })),
+        z.string().transform((value) => ({ kind: "string" as const, value })),
+        z.boolean().transform((value) => ({ kind: "boolean" as const, value })),
+        z
+          .union([
+            z.number(),
+            z.nan(),
+            z.literal(Infinity),
+            z.literal(-Infinity),
+          ])
+          .transform((value) => ({ kind: "number" as const, value })),
+        z.bigint().transform((value) => ({ kind: "bigint" as const, value })),
+        z.symbol().transform((value) => ({ kind: "symbol" as const, value })),
+        z
+          .instanceof(Function)
+          .transform((value) => ({ kind: "function" as const, value })),
+        z
+          .array(z.unknown())
+          .transform((value) => ({ kind: "array" as const, value })),
+        z
+          .union([z.instanceof(Object), z.record(z.string(), z.unknown())])
+          .transform((value) => ({ kind: "object" as const, value })),
+        z.unknown().transform(() => ({ kind: "opaque" as const })),
+      ]),
+    ),
+);
 
 /** Admit only errors constructed by the sandbox owner, using the maintained decoder. */
 export function isSandboxFailure(cause: unknown): cause is SandboxFailure {
@@ -98,7 +107,7 @@ export function sandboxValueKind(value: SandboxValue): string {
   }
 }
 
-const bindingInputSchema = z.json().optional();
+const bindingInputSchema = z.lazy(() => z.json().optional());
 /** JSON argument or the SDK's explicit absence of an argument. */
 export type SandboxBindingInput = MyceliumJsonValue | undefined;
 
@@ -170,20 +179,27 @@ function operatorValue(
   }
 }
 
-const missingVariable = z
-  .object({
-    name: z.literal("ReferenceError"),
-    message: z
-      .string()
-      .regex(/^[\p{ID_Start}_$][\p{ID_Continue}$]* is not defined$/u),
-  })
-  .transform((value) => ({
-    ...value,
-    missingVariable: value.message.slice(0, -" is not defined".length),
-  }));
-const guestDiagnosticSchema = z
-  .union([missingVariable, z.object({ name: z.string(), message: z.string() })])
-  .and(z.object({ transportMessage: z.string().max(512).optional() }));
+const missingVariable = z.lazy(() =>
+  z
+    .object({
+      name: z.literal("ReferenceError"),
+      message: z
+        .string()
+        .regex(/^[\p{ID_Start}_$][\p{ID_Continue}$]* is not defined$/u),
+    })
+    .transform((value) => ({
+      ...value,
+      missingVariable: value.message.slice(0, -" is not defined".length),
+    })),
+);
+const guestDiagnosticSchema = z.lazy(() =>
+  z
+    .union([
+      missingVariable,
+      z.object({ name: z.string(), message: z.string() }),
+    ])
+    .and(z.object({ transportMessage: z.string().max(512).optional() })),
+);
 
 /** Decode the engine's guest-owned diagnostic once; renderers receive typed fields. */
 export function sandboxGuestFailure(
@@ -203,39 +219,43 @@ export function sandboxGuestFailure(
   return new GuestThrew(diagnostic);
 }
 
-const transportEnvelopeSchema = z.strictObject({
-  v: z.literal(1),
-  kind: z.literal("sandbox_failure"),
-  tag: z.enum([
-    "SourceInvalid",
-    "GuestThrew",
-    "DeadlineExceeded",
-    "Cancelled",
-    "DispatchLost",
-    "SandboxCrashed",
-    "BadResponse",
-    "ResultTooLarge",
-    "ResultNotJson",
-    "CapabilityFailed",
-    "Unknown",
-  ]),
-  ref: z.string().min(1).max(32),
-  message: z.string().max(160),
-});
+const transportEnvelopeSchema = z.lazy(() =>
+  z.strictObject({
+    v: z.literal(1),
+    kind: z.literal("sandbox_failure"),
+    tag: z.enum([
+      "SourceInvalid",
+      "GuestThrew",
+      "DeadlineExceeded",
+      "Cancelled",
+      "DispatchLost",
+      "SandboxCrashed",
+      "BadResponse",
+      "ResultTooLarge",
+      "ResultNotJson",
+      "CapabilityFailed",
+      "Unknown",
+    ]),
+    ref: z.string().min(1).max(32),
+    message: z.string().max(160),
+  }),
+);
 const decodeJsonText = Schema.decodeUnknownResult(
   Schema.fromJsonString(Schema.Unknown),
 );
-const jsonTextSchema = z.string().transform((text, context) => {
-  const decoded = decodeJsonText(text);
-  if (Result.isFailure(decoded)) {
-    context.addIssue({
-      code: "custom",
-      message: "Invalid sandbox transport JSON",
-    });
-    return z.NEVER;
-  }
-  return decoded.success;
-});
+const jsonTextSchema = z.lazy(() =>
+  z.string().transform((text, context) => {
+    const decoded = decodeJsonText(text);
+    if (Result.isFailure(decoded)) {
+      context.addIssue({
+        code: "custom",
+        message: "Invalid sandbox transport JSON",
+      });
+      return z.NEVER;
+    }
+    return decoded.success;
+  }),
+);
 const transportMessageSchema = jsonTextSchema.pipe(transportEnvelopeSchema);
 const returnedOperationFailure = z.strictObject({
   error: transportMessageSchema,
@@ -272,18 +292,19 @@ export function recoverSandboxFailure(
   return original?._tag === decoded.data.tag ? original : failure;
 }
 
-const executorFailureSchema = z
-  .unknown()
-  .pipe(
+const executorFailureSchema = z.lazy(() =>
+  z.unknown().pipe(
     z.union([
       z
         .literal("Execution timed out")
         .transform(() => ({ kind: "deadline" as const })),
-      z
-        .unknown()
-        .transform((rawCause) => ({ kind: "bad_response" as const, rawCause })),
+      z.unknown().transform((rawCause) => ({
+        kind: "bad_response" as const,
+        rawCause,
+      })),
     ]),
-  );
+  ),
+);
 
 /** Decode Codemode's documented error carrier before adapters choose a failure. */
 export function sandboxExecutorFailure(
