@@ -71,6 +71,7 @@ it.each(["demoted", "suspended"])(
       name: "app",
       operations: {
         write: Mycelium.operation({
+          confirm: true,
           input: z.object({}),
           execute: () => {
             calls++;
@@ -172,7 +173,7 @@ it("refuses unauthenticated requests before acquiring any catalog", async () => 
   }
 });
 
-it("serves a principal-scoped source catalog and refuses an unapproved write", async () => {
+it("serves a principal-scoped source catalog without forcing an outer write approval", async () => {
   const written: string[] = [];
   const principals: string[] = [];
   let admitted = true;
@@ -244,10 +245,8 @@ it("serves a principal-scoped source catalog and refuses an unapproved write", a
       name: "execute",
       arguments: { code: "write" },
     });
-    expect(written).toEqual([]);
-    expect(JSON.stringify(result.content)).toContain(
-      "confirmation-unavailable",
-    );
+    expect(written).toEqual(["requires approval"]);
+    expect(result.isError).not.toBe(true);
     expect(principals.length).toBeGreaterThan(0);
     expect(new Set(principals)).toEqual(new Set(["key:one"]));
     subject = "key:two";
@@ -274,7 +273,7 @@ it("serves a principal-scoped source catalog and refuses an unapproved write", a
 });
 
 it.each(["accepted", "declined", "revoked", "ungranted"] as const)(
-  "checks %s approval and current grants before a write",
+  "checks an explicit author confirmation (%s) and current grants before a write",
   async (decision) => {
     const written: string[] = [];
     let grant: "write" | "none" = "write";
@@ -283,6 +282,7 @@ it.each(["accepted", "declined", "revoked", "ungranted"] as const)(
       name: "app",
       operations: {
         write: Mycelium.operation({
+          confirm: true,
           input: z.object({}),
           execute: () => {
             written.push("changed");
@@ -368,103 +368,6 @@ it.each(["accepted", "declined", "revoked", "ungranted"] as const)(
             ? "declined"
             : "not-granted",
       );
-    } finally {
-      await client.close();
-      await mcp.close();
-    }
-  },
-);
-
-it.each(["approved", "unapproved", "author-confirm", "withdrawn"] as const)(
-  "a headless client that cancels every elicitation: %s write",
-  async (scenario) => {
-    // `claude -p` advertises a bare `elicitation: {}` and answers every
-    // elicitation with `cancel` when no SDK host or hook can ask a person.
-    const written: string[] = [];
-    let approvedWrites: readonly string[] =
-      scenario === "unapproved" ? [] : ["app"];
-    const module = Mycelium.module({
-      id: "app",
-      name: "app",
-      operations: {
-        write: Mycelium.operation({
-          confirm: scenario === "author-confirm",
-          input: z.object({}),
-          execute: () => {
-            written.push("changed");
-            if (scenario === "withdrawn") approvedWrites = [];
-            return Promise.resolve("done");
-          },
-        }),
-      },
-    });
-    const catalog = createMcpCatalog({
-      load: () =>
-        Promise.resolve({
-          instructions: "Installed App",
-          grants: { app: "write" },
-          approvedWrites,
-          sources: [
-            {
-              id: "apps",
-              acquire: () =>
-                Promise.resolve({
-                  snapshot: { version: "1", modules: [module] },
-                  release: () => Promise.resolve(),
-                }),
-            },
-          ],
-        }),
-      sandbox: directSandbox(async (bindings) => {
-        const write = bindings.app?.write;
-        if (write === undefined) throw new Error("Missing App");
-        return [await write({}), await write({})];
-      }),
-    });
-    const mcp = createMcp({
-      catalog,
-      authenticate: () =>
-        Promise.resolve({
-          kind: "admitted",
-          principal: { actor: { kind: "team-key", keyId: "agent-key" } },
-        }),
-    });
-    const client = new Client(
-      { name: "claude-code", version: "2.1.299" },
-      { capabilities: { elicitation: {} } },
-    );
-    let asked = 0;
-    client.setRequestHandler("elicitation/create", () => {
-      asked++;
-      return Promise.resolve({ action: "cancel" });
-    });
-    const transport = new StreamableHTTPClientTransport(
-      new URL("https://mcp.test/mcp"),
-      {
-        fetch: (input, init) => mcp.handleRequest(new Request(input, init)),
-      },
-    );
-    try {
-      await client.connect(transport);
-      const result = await client.callTool({
-        name: "execute",
-        arguments: { code: "write" },
-      });
-      const content = JSON.stringify(result.content);
-      if (scenario === "approved") {
-        expect(asked).toBe(0);
-        expect(written).toEqual(["changed", "changed"]);
-        expect(content).toContain("done");
-      } else if (scenario === "withdrawn") {
-        // The next operation reloads authority and no longer finds approval.
-        expect(asked).toBe(1);
-        expect(written).toEqual(["changed"]);
-        expect(content).toContain("declined");
-      } else {
-        expect(asked).toBe(2);
-        expect(written).toEqual([]);
-        expect(content).toContain("declined");
-      }
     } finally {
       await client.close();
       await mcp.close();

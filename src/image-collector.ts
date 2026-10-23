@@ -21,7 +21,7 @@ export type CollectedImage = Readonly<{
   /** Base64-encoded image bytes. */
   data: string;
   /** MIME type of the collected image. */
-  mimeType: "image/jpeg" | "image/png" | "image/webp";
+  mimeType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
   /** Path the image was read from. */
   path: string;
   /** Byte length of the collected image payload. */

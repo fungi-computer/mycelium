@@ -4,6 +4,11 @@ export {
   sandboxOperatorValue,
 } from "./sandbox-boundary.js";
 import type { ForageCatalog } from "@fungi.computer/forage";
+export {
+  normalizeSandboxAdmissionPolicy,
+  type SandboxAdmissionOptions,
+  type SandboxAdmissionPolicy,
+} from "./sandbox-admission.js";
 import type { MuleTool } from "@fungi.computer/mule/effect";
 import type { Sandbox, MyceliumJsonValue } from "./sandbox.js";
 export type {
@@ -55,6 +60,7 @@ export {
   SourceInvalid,
   GuestThrew,
   DeadlineExceeded,
+  SandboxBusy,
   Cancelled,
   DispatchLost,
   SandboxCrashed,
@@ -116,6 +122,13 @@ export type InvocationContext = Readonly<{
   executionId: string;
   /** Enclosing model tool call; absent for direct operation/execute calls. */
   toolCallId?: string;
+  /**
+   * Zero-based registered-operation call position within this execute.
+   * Assigned before asynchronous admission, across all methods and modules.
+   * Replaying the same call sequence produces the same positions. Absent
+   * outside execute-bound invocation; not an authorization or replay grant.
+   */
+  operationOrdinal?: number;
   /** Enclosing sandbox program supplied by the host; never an operation argument. */
   toolCallCode?: string;
   /** Absolute epoch-millisecond execute deadline; null for direct calls outside execute. */
@@ -129,6 +142,11 @@ export type InvocationContext = Readonly<{
    * where no tool result would carry the image.
    */
   images?: ExecutionImages;
+  /** Process-local stdout/stderr tail sink; absent outside an execute tool run. */
+  output?: Readonly<{
+    /** Append raw bytes to the execution-owned bounded stdout/stderr tail. */
+    write: (stream: "stdout" | "stderr", bytes: Uint8Array) => void;
+  }>;
 }>;
 
 /** Inputs used to construct the Promise-facing runtime. */

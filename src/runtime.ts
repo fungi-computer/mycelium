@@ -148,7 +148,6 @@ export function openCoreRuntime(
 ): Effect.Effect<CoreRuntime, MyceliumError, Scope.Scope> {
   return Effect.gen(function* () {
     const gate = yield* Semaphore.make(1);
-    const backingWork = createBackingWorkTracker();
     const execution = yield* Effect.try({
       try: () => normalizeExecutionPolicy(options.execution),
       catch: (cause) =>
@@ -156,6 +155,7 @@ export function openCoreRuntime(
           ? cause
           : new MyceliumDefinitionError("Execution policy is invalid"),
     });
+    const backingWork = yield* createBackingWorkTracker(execution.capacity);
     const sandbox: EffectSandbox = Object.freeze({
       execute: options.sandbox.execute,
       adapter: options.sandbox.adapter,

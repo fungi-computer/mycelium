@@ -1,6 +1,6 @@
 {
   "name": "@fungi.computer/mycelium",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "Levi <levi@technomancy.dev>",
   "description": "Effect-native scoped capability lifecycle with a Zod-authored execute door",
   "type": "module",
@@ -61,6 +61,10 @@
     }
   },
   "imports": {
+    "#host-cores": {
+      "node": "./dist/internal/host-cores.node.js",
+      "default": "./dist/internal/host-cores.js"
+    },
     "#build-identity": {
       "node": "./dist/internal/build-identity.node.js",
       "default": "./dist/internal/build-identity.js"

@@ -6,6 +6,7 @@ import {
 } from "../sandbox-boundary.js";
 import type { SandboxFailureEvent } from "../sandbox-failure-event.js";
 import { sandboxBuildSha } from "#build-identity";
+import { availableHostCores } from "#host-cores";
 import * as Metric from "effect/Metric";
 import {
   referenceSandboxFailure,
@@ -14,6 +15,7 @@ import {
   ResultTooLarge,
   ResultNotJson,
   CapabilityFailed,
+  SandboxBusy,
   type SandboxFailure,
 } from "../sandbox-failure.js";
 import { ForageError } from "@fungi.computer/forage";
@@ -21,7 +23,13 @@ import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
+import * as Semaphore from "effect/Semaphore";
 import { z } from "zod";
+import {
+  normalizeSandboxAdmissionPolicy,
+  sandboxAdmissionOptionsSchema,
+  type SandboxAdmissionPolicy,
+} from "../sandbox-admission.js";
 
 import type { ExecutionOptions } from "../execute-tool.js";
 import {
@@ -44,23 +52,22 @@ const jsonScalarSchema = z.lazy(() =>
 );
 const jsonRecordSchema = z.lazy(() => z.record(z.string(), z.unknown()));
 const executionOptionsSchema = z.lazy(() =>
-  z
-    .object({
+  sandboxAdmissionOptionsSchema
+    .extend({
       timeoutMs: z.number().int().min(1).max(900_000).optional(),
       abortGraceMs: z.number().int().min(1).max(30_000).optional(),
     })
-    .strict()
     .optional(),
 );
 const maximumJsonDepth = 64;
 const maximumSerializedJsonBytes = 256 * 1024;
-const maximumBackingExecutions = 8;
 const utf8 = new TextEncoder();
 
-export type ExecutionPolicy = Readonly<{
-  readonly timeoutMs: number;
-  readonly abortGraceMs: number;
-}>;
+export type ExecutionPolicy = SandboxAdmissionPolicy &
+  Readonly<{
+    readonly timeoutMs: number;
+    readonly abortGraceMs: number;
+  }>;
 
 export type BackingWorkGroup = Readonly<{
   readonly start: <A, E>(
@@ -87,67 +94,65 @@ export function normalizeExecutionPolicy(
   return Object.freeze({
     timeoutMs: parsed.data?.timeoutMs ?? 180_000,
     abortGraceMs: parsed.data?.abortGraceMs ?? 5_000,
+    ...normalizeSandboxAdmissionPolicy(
+      {
+        sandboxCapacity: parsed.data?.sandboxCapacity,
+        admissionWaitMs: parsed.data?.admissionWaitMs,
+      },
+      parsed.data?.sandboxCapacity === undefined
+        ? availableHostCores()
+        : undefined,
+    ),
   });
 }
 
-export function createBackingWorkTracker(): BackingWorkTracker {
-  let active = 0;
-  return Object.freeze({
-    createGroup: (): BackingWorkGroup => {
-      let groupActive = 0;
-      const waiters = new Set<(effect: Effect.Effect<undefined>) => void>();
-      const awaitIdle = Effect.callback<undefined>((resume) => {
-        if (groupActive === 0) {
-          resume(Effect.succeed(undefined));
-          return Effect.sync(() => undefined);
-        }
-        waiters.add(resume);
-        return Effect.sync(() => waiters.delete(resume));
-      });
-      return Object.freeze({
-        start: <A, E>(
-          effect: Effect.Effect<A, E>,
-        ): Effect.Effect<Fiber.Fiber<A, E>, SandboxFailure> =>
-          Effect.uninterruptibleMask((restore) =>
-            Effect.sync(() => {
-              if (active >= maximumBackingExecutions) return false;
-              active += 1;
-              groupActive += 1;
-              return true;
-            }).pipe(
-              Effect.flatMap((reserved) =>
-                reserved
-                  ? Effect.forkDetach(
-                      restore(effect).pipe(
-                        Effect.ensuring(
-                          Effect.sync(() => {
-                            active -= 1;
-                            groupActive -= 1;
-                            if (groupActive === 0) {
-                              const pending = [...waiters];
-                              waiters.clear();
-                              pending.forEach(resumeIdle);
-                            }
-                          }),
-                        ),
+export function createBackingWorkTracker(
+  capacity: number,
+): Effect.Effect<BackingWorkTracker> {
+  return Effect.gen(function* () {
+    const permits = yield* Semaphore.make(capacity);
+    return Object.freeze({
+      createGroup: (): BackingWorkGroup => {
+        let groupActive = 0;
+        const waiters = new Set<(effect: Effect.Effect<undefined>) => void>();
+        const awaitIdle = Effect.callback<undefined>((resume) => {
+          if (groupActive === 0) {
+            resume(Effect.succeed(undefined));
+            return Effect.sync(() => undefined);
+          }
+          waiters.add(resume);
+          return Effect.sync(() => waiters.delete(resume));
+        });
+        return Object.freeze({
+          start: <A, E>(
+            effect: Effect.Effect<A, E>,
+          ): Effect.Effect<Fiber.Fiber<A, E>, SandboxFailure> =>
+            Effect.uninterruptibleMask((restore) =>
+              Effect.sync(() => {
+                groupActive += 1;
+              }).pipe(
+                Effect.andThen(
+                  Effect.forkDetach(
+                    restore(permits.withPermits(1)(effect)).pipe(
+                      Effect.ensuring(
+                        Effect.sync(() => {
+                          groupActive -= 1;
+                          if (groupActive === 0) {
+                            const pending = [...waiters];
+                            waiters.clear();
+                            pending.forEach(resumeIdle);
+                          }
+                        }),
                       ),
-                    )
-                  : Effect.fail(
-                      new CapabilityFailed({
-                        namespace: "execute",
-                        operation: "admission",
-                        cause: {
-                          kind: "Unavailable",
-                          message: "Sandbox execution capacity unavailable",
-                        },
-                      }),
                     ),
+                  ),
+                ),
               ),
             ),
-          ),
-        awaitIdle,
-      });
-    },
+          awaitIdle,
+        });
+      },
+    });
   });
 }
 
@@ -268,6 +273,7 @@ export type ExecutionLifecycleRequest = Readonly<{
   readonly executionId: string;
   /** This run's slot in the door's collector, exposed through the context. */
   readonly images: ExecutionImages;
+  readonly output?: InvocationContext["output"];
   readonly code: string;
   readonly callerSignal: AbortSignal | undefined;
   readonly policy: ExecutionPolicy;
@@ -280,6 +286,10 @@ export type ExecutionLifecycleRequest = Readonly<{
   /** Stable Session identity for this run; null for session-free hosts. */
   readonly sessionId: string | null;
 }>;
+
+type AdmissionWaitOutcome =
+  | { readonly kind: "busy"; readonly failure: SandboxBusy }
+  | { readonly kind: "cancelled" | "deadline" };
 
 function executionFailure(
   cancellation: "cancelled" | "deadline_exceeded" | undefined,
@@ -304,12 +314,27 @@ export function runExecution(
       Effect.suspend(() => {
         const executionId = request.executionId;
         const controller = new AbortController();
+        let queuedAt = startedAt;
+        let admission:
+          | { readonly kind: "waiting" }
+          | { readonly kind: "admitted" }
+          | { readonly kind: "refused"; readonly failure: SandboxBusy } = {
+          kind: "waiting",
+        };
         let cancellation: "cancelled" | "deadline_exceeded" | undefined;
         const cancel = (phase: "cancelled" | "deadline_exceeded") => {
-          if (cancellation === undefined) {
+          if (cancellation === undefined && admission.kind !== "refused") {
             cancellation = phase;
             controller.abort();
           }
+        };
+        const refuseAdmission = (now: number) => {
+          const failure = new SandboxBusy({
+            capacity: request.policy.capacity,
+            waitedMs: Math.max(0, now - queuedAt),
+          });
+          admission = { kind: "refused", failure };
+          return failure;
         };
         const admit = () => {
           if (controller.signal.aborted)
@@ -318,60 +343,73 @@ export function runExecution(
         const detachCaller = forwardAbort(request.callerSignal, () => {
           cancel("cancelled");
         });
+        const deadlineAt = startedAt + request.policy.timeoutMs;
         const invocation = {
           executionId,
-          deadlineAt: startedAt + request.policy.timeoutMs,
+          deadlineAt,
           signal: controller.signal,
           images: request.images,
         };
         if (request.toolCallId !== undefined)
           Object.assign(invocation, { toolCallId: request.toolCallId });
+        if (request.output !== undefined)
+          Object.assign(invocation, { output: request.output });
         const context: InvocationContext = Object.freeze(invocation);
         const sandboxExecution = Effect.suspend<
           SandboxValue,
           MyceliumError,
           never
-        >(() => {
-          if (controller.signal.aborted)
-            return elapsedSince(startedAt).pipe(
-              Effect.flatMap((elapsedMs) =>
-                Effect.fail(
-                  executionFailure(
-                    cancellation,
-                    request.policy.timeoutMs,
-                    elapsedMs,
+        >(() =>
+          Clock.currentTimeMillis.pipe(
+            Effect.flatMap((now) => {
+              if (admission.kind === "refused")
+                return Effect.fail(admission.failure);
+              if (now >= deadlineAt) cancel("deadline_exceeded");
+              if (controller.signal.aborted)
+                return elapsedSince(startedAt).pipe(
+                  Effect.flatMap((elapsedMs) =>
+                    Effect.fail(
+                      executionFailure(
+                        cancellation,
+                        request.policy.timeoutMs,
+                        elapsedMs,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            );
-          return request.sandbox
-            .execute(
-              Object.freeze({
-                executionId,
-                code: request.code,
-                timeoutMs: request.policy.timeoutMs,
-                bindings: guardedBindings(
-                  request.createBindings(context),
-                  admit,
-                ),
-                // B3c (adr-guest-code-broker addendum): `buildGuestBindings`
-                // classifies every compiled alias by its STABLE MODULE ID,
-                // never its Team-chosen alias, so the sandbox needs both of
-                // these to reach a retained operation at all.
-                modules: request.modules,
-                namespacePaths: request.namespacePaths,
-                sessionId: request.sessionId,
-              }),
-              controller.signal,
-            )
-            .pipe(
-              Effect.catchCause((cause) =>
-                Cause.hasInterruptsOnly(cause)
-                  ? Effect.failCause(cause)
-                  : Effect.fail(sandboxFailure(Cause.squash(cause))),
-              ),
-            );
-        });
+                );
+              if (now >= queuedAt + request.policy.waitMs)
+                return Effect.fail(refuseAdmission(now));
+              admission = { kind: "admitted" };
+              return request.sandbox
+                .execute(
+                  Object.freeze({
+                    executionId,
+                    code: request.code,
+                    timeoutMs: request.policy.timeoutMs,
+                    bindings: guardedBindings(
+                      request.createBindings(context),
+                      admit,
+                    ),
+                    // B3c (adr-guest-code-broker addendum): `buildGuestBindings`
+                    // classifies every compiled alias by its STABLE MODULE ID,
+                    // never its Team-chosen alias, so the sandbox needs both of
+                    // these to reach a retained operation at all.
+                    modules: request.modules,
+                    namespacePaths: request.namespacePaths,
+                    sessionId: request.sessionId,
+                  }),
+                  controller.signal,
+                )
+                .pipe(
+                  Effect.catchCause((cause) =>
+                    Cause.hasInterruptsOnly(cause)
+                      ? Effect.failCause(cause)
+                      : Effect.fail(sandboxFailure(Cause.squash(cause))),
+                  ),
+                );
+            }),
+          ),
+        );
         const interruptBacking = (
           child: Fiber.Fiber<SandboxValue, MyceliumError>,
         ) =>
@@ -479,7 +517,32 @@ export function runExecution(
               ),
             );
           }
+          queuedAt = yield* Clock.currentTimeMillis;
           child = yield* request.backingWork.start(sandboxExecution);
+          const now = yield* Clock.currentTimeMillis;
+          const capacityWait = Effect.sleep(
+            Math.max(0, queuedAt + request.policy.waitMs - now),
+          ).pipe(
+            Effect.andThen(Clock.currentTimeMillis),
+            Effect.flatMap((at): Effect.Effect<AdmissionWaitOutcome> => {
+              if (admission.kind === "admitted") return Effect.never;
+              if (admission.kind === "refused")
+                return Effect.succeed({
+                  kind: "busy" as const,
+                  failure: admission.failure,
+                });
+              if (controller.signal.aborted)
+                return Effect.succeed({ kind: "cancelled" as const });
+              if (at >= deadlineAt) {
+                cancel("deadline_exceeded");
+                return Effect.succeed({ kind: "deadline" as const });
+              }
+              return Effect.succeed({
+                kind: "busy" as const,
+                failure: refuseAdmission(at),
+              });
+            }),
+          );
           const first = yield* Effect.raceFirst(
             Fiber.await(child).pipe(
               Effect.map((exit) =>
@@ -487,14 +550,32 @@ export function runExecution(
               ),
             ),
             Effect.raceFirst(
-              Effect.sleep(request.policy.timeoutMs).pipe(
-                Effect.as(Object.freeze({ kind: "deadline" as const })),
+              Effect.sleep(Math.max(0, deadlineAt - now)).pipe(
+                Effect.andThen(
+                  Effect.sync(() => {
+                    cancel("deadline_exceeded");
+                    return Object.freeze({ kind: "deadline" as const });
+                  }),
+                ),
               ),
-              waitForAbort(controller.signal).pipe(
-                Effect.as(Object.freeze({ kind: "cancelled" as const })),
+              Effect.raceFirst(
+                waitForAbort(controller.signal).pipe(
+                  Effect.as(Object.freeze({ kind: "cancelled" as const })),
+                ),
+                capacityWait,
               ),
             ),
           );
+          const refusal =
+            admission.kind === "refused"
+              ? admission.failure
+              : first.kind === "busy"
+                ? first.failure
+                : undefined;
+          if (refusal !== undefined)
+            return yield* interruptBacking(child).pipe(
+              Effect.andThen(Effect.fail(refusal)),
+            );
           if (first.kind === "settled") {
             return yield* Effect.matchCauseEffectEager(first.exit, {
               onFailure: (cause) =>

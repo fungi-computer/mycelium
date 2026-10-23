@@ -47,7 +47,6 @@ export type McpExecutionContext = Readonly<{
   /** Apply to Mycelium access options for this call only; never persist callbacks. */
   access: Pick<AccessOptions, "confirm"> &
     Readonly<{
-      confirmWrites: true;
       /** Recheck the open connection and refresh authority before each operation. */
       beforeCall: (signal: AbortSignal) => Promise<void>;
     }>;
@@ -207,7 +206,6 @@ export function createMcp(
             }
           : undefined;
         const access = {
-          confirmWrites: true,
           confirm,
           beforeCall: async (signal: AbortSignal) => {
             signal.throwIfAborted();

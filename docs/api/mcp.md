@@ -44,7 +44,6 @@ type McpCatalogSnapshot = Readonly<{
   instructions: string;
   sources: readonly CapabilitySource[];
   grants: Grants;
-  approvedWrites?: readonly string[];
 }>;
 ```
 
@@ -93,7 +92,6 @@ type McpExecutionContext = Readonly<{
   onPart?: (part) => Promise<void>;
   access: Pick<AccessOptions, "confirm"> &
     Readonly<{
-      confirmWrites: true;
       beforeCall: (signal) => Promise<void>;
     }>;
 }>;

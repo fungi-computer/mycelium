@@ -31,6 +31,17 @@ export class DeadlineExceeded extends Data.TaggedError("DeadlineExceeded")<
     readonly acknowledged?: boolean | undefined;
   }
 > {}
+/** Admission expired before any sandbox work started. */
+export class SandboxBusy extends Data.TaggedError("SandboxBusy")<
+  SandboxFailureReference & {
+    readonly capacity: number;
+    readonly waitedMs: number;
+  }
+> {
+  /** Stable contention code, not a sandbox health failure. */
+  readonly code = "sandbox-busy";
+}
+
 /** The invocation owner accepted cancellation. */
 export class Cancelled extends Data.TaggedError("Cancelled")<
   SandboxFailureReference & {
@@ -110,6 +121,7 @@ export type SandboxFailure =
   | SourceInvalid
   | GuestThrew
   | DeadlineExceeded
+  | SandboxBusy
   | Cancelled
   | DispatchLost
   | SandboxCrashed
@@ -145,6 +157,12 @@ export function referenceSandboxFailure(
         limitMs: failure.limitMs,
         elapsedMs: failure.elapsedMs,
         acknowledged: failure.acknowledged,
+        ref,
+      });
+    case "SandboxBusy":
+      return new SandboxBusy({
+        capacity: failure.capacity,
+        waitedMs: failure.waitedMs,
         ref,
       });
     case "Cancelled":
@@ -214,6 +232,9 @@ export function sandboxFailureMessage(
     }
     case "DeadlineExceeded":
       text = `execute hit its ${String(failure.limitMs)} ms deadline after ${String(failure.elapsedMs)} ms; split the work or persist progress${failure.acknowledged === false ? "; sandbox did not acknowledge cancellation" : ""}`;
+      break;
+    case "SandboxBusy":
+      text = `sandbox-busy: all ${String(failure.capacity)} sandbox slots remained occupied after waiting ${String(failure.waitedMs)} ms. Nothing ran; retry this call after capacity becomes available.`;
       break;
     case "Cancelled":
       text =

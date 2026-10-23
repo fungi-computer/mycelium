@@ -22,12 +22,6 @@ export type McpCatalogSnapshot = Readonly<{
   sources: readonly CapabilitySource[];
   /** Every permitted module is named; an omitted module is refused. */
   grants: Grants;
-  /**
-   * Granted modules whose writes a person already approved for this principal,
-   * such as an owner's stored approval of a key's App tools. Their writes run
-   * without a per-call elicitation; every other write still asks.
-   */
-  approvedWrites?: readonly string[];
 }>;
 
 /**
@@ -76,7 +70,6 @@ export function createMcpCatalog(
             ...access,
             defaultGrant: "none",
             sessionGrants: () => snapshot?.grants ?? {},
-            approvedWrites: () => snapshot?.approvedWrites ?? [],
           },
         });
         try {

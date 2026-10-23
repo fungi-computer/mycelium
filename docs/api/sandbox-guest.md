@@ -13,32 +13,34 @@
 ### sandboxGuestResultSchema
 
 ```ts
-const sandboxGuestResultSchema: ZodDiscriminatedUnion<
-  [
-    ZodObject<
-      {
-        ok: ZodLiteral<true>;
-        value: ZodUnknown;
-      },
-      $strict
-    >,
-    ZodObject<
-      {
-        ok: ZodLiteral<false>;
-        error: ZodObject<
-          {
-            kind: ZodLiteral<"guest_threw">;
-            name: ZodString;
-            message: ZodString;
-            transportMessage: ZodOptional<ZodString>;
-          },
-          $strict
-        >;
-      },
-      $strict
-    >,
-  ],
-  "ok"
+const sandboxGuestResultSchema: ZodLazy<
+  ZodDiscriminatedUnion<
+    [
+      ZodObject<
+        {
+          ok: ZodLiteral<true>;
+          value: ZodUnknown;
+        },
+        $strict
+      >,
+      ZodObject<
+        {
+          ok: ZodLiteral<false>;
+          error: ZodObject<
+            {
+              kind: ZodLiteral<"guest_threw">;
+              name: ZodString;
+              message: ZodString;
+              transportMessage: ZodOptional<ZodString>;
+            },
+            $strict
+          >;
+        },
+        $strict
+      >,
+    ],
+    "ok"
+  >
 >;
 ```
 
@@ -49,7 +51,7 @@ Closed guest envelope: guest exceptions cannot masquerade as host failures.
 ### sandboxNamespaceSegmentSchema
 
 ```ts
-const sandboxNamespaceSegmentSchema: ZodString;
+const sandboxNamespaceSegmentSchema: ZodLazy<ZodString>;
 ```
 
 Parsed guest namespace segments; callbacks never cross this wire.
@@ -59,7 +61,7 @@ Parsed guest namespace segments; callbacks never cross this wire.
 ### sandboxTransportAliasSchema
 
 ```ts
-const sandboxTransportAliasSchema: ZodString;
+const sandboxTransportAliasSchema: ZodLazy<ZodString>;
 ```
 
 A transport alias is interpolated as a strict JavaScript binding identifier.
@@ -69,7 +71,9 @@ A transport alias is interpolated as a strict JavaScript binding identifier.
 ### sandboxNamespacePathsSchema
 
 ```ts
-const sandboxNamespacePathsSchema: ZodRecord<ZodString, ZodArray<ZodString>>;
+const sandboxNamespacePathsSchema: ZodLazy<
+  ZodRecord<ZodLazy<ZodString>, ZodArray<ZodLazy<ZodString>>>
+>;
 ```
 
 Transport aliases mapped to their logical namespace paths.
@@ -79,7 +83,9 @@ Transport aliases mapped to their logical namespace paths.
 ### sandboxBindingNamesSchema
 
 ```ts
-const sandboxBindingNamesSchema: ZodRecord<ZodString, ZodArray<ZodString>>;
+const sandboxBindingNamesSchema: ZodLazy<
+  ZodRecord<ZodLazy<ZodString>, ZodArray<ZodString>>
+>;
 ```
 
 Serializable flat transport table; operation keys may have any namespace depth.

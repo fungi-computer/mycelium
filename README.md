@@ -102,6 +102,33 @@ Access checks and authorization gates run before the operation. Product
 membership, resource ownership and final external access checks remain host
 responsibilities.
 
+Each `execute` call runs in a fresh sandbox, not a REPL: no variable, function
+or global survives between calls. Redefine helpers in every call, or persist
+state to a file and read it back.
+
+### Operation identity within execute
+
+Every registered-operation call receives a frozen `InvocationContext` with a
+zero-based `operationOrdinal`. One counter spans all registered methods and
+modules in an execute. Allocation happens synchronously when the binding is
+called, before asynchronous admission or operation work, so sequential calls and
+concurrently started calls have distinct positions. Forage's built-in discovery
+helpers do not consume registered-operation positions.
+
+The counter resets for each execute attempt. Replaying the same bound-call
+sequence gives the same ordinals even though `executionId` is fresh. A host that
+needs effect deduplication combines its stored Session and command identities
+with `toolCallId` and `operationOrdinal`; an ordinal alone is not a globally
+unique identity. Different call sequences are not promised identical positions,
+and the effect owner must still compare the intended operation and payload on
+replay. This metadata grants neither authority nor permission to replay unsafe
+work.
+
+Direct `invokeModuleOperation` callers supply their own context; outside an
+execute there is no enclosing call sequence, so `operationOrdinal` may be
+absent, just as `toolCallId` may be absent. A host requiring execute identity
+must refuse a write with missing identity rather than invent a fallback.
+
 ## Access labels and grants
 
 Each operation's author labels what it does: `access: "read"` observes,
@@ -192,6 +219,44 @@ or oversized results. A foreign throw becomes `Unknown`. The model receives the
 bounded `sandboxFailureMessage` projection with a reference. The host receives
 operator evidence through `onSandboxFailure` and the existing reporting path.
 Preserve that evidence without sending host diagnostics to the guest.
+
+### Sandbox admission
+
+The host-only `execution` options accept `sandboxCapacity` (a positive safe
+integer) and `admissionWaitMs` (an integer from 1 to 900,000 milliseconds,
+default 5,000). Guests still submit only `code`. An omitted capacity derives
+from available cores, clamped to 2..32; hosts without a portable core
+observation use 2. Node captures its affinity-aware core count once per runtime
+through `node:os.availableParallelism()`, behind a platform-conditional module
+outside the Workers import graph. Explicit valid capacity overrides bypass
+observation and are not clamped, including values above 32.
+
+`normalizeSandboxAdmissionPolicy(options, availableCores?)` validates and
+resolves these host facts. It does not reserve a slot or start a sandbox. Both
+public runtime facades validate and capture the policy when the runtime opens.
+
+Admission belongs to the existing runtime-wide backing-work tracker, not each
+lease, group, or revision. A full pool waits until a slot opens or the earlier
+of the admission-wait deadline and the **original invocation deadline**.
+Admission-wait expiry yields `SandboxBusy`, stable code `sandbox-busy`, with
+safe `capacity` and `waitedMs` facts; the submitted program has not run.
+Invocation-deadline expiry remains `DeadlineExceeded`, including when both
+deadlines coincide. Caller cancellation remains `Cancelled`. Queueing does not
+restart the execution timeout. No automatic replay is authorized.
+
+The runtime uses one maintained Effect semaphore across source revisions and
+interruptible deadline APIs. Queued work is registered before waiting.
+Cancellation removes queued work; no expired/cancelled waiter may start later. A
+permit remains owned until actual backing settlement, including after an
+unacknowledged abort. Waiting does not hold the lifecycle/revision gate needed
+for release or close.
+
+`SandboxBusy` is admitted by the existing owned-error decoder, safe transport,
+host wire and operator-event grammar; it is contention, not an `Unknown` health
+alert. The execute tool retains its safe typed cause and an actionable coded
+message without changing Mule's error contract. Unrelated foreign failures stay
+`Unknown`: do not classify diagnostic prose, unwrap arbitrary cause chains, or
+mislabel an arbitrary adapter `AbortError` as caller-authorized cancellation.
 
 An Effect host with a Promise sandbox uses `fromTypedSandbox`, which waits for
 that Promise to settle when interrupted. The concrete sandbox and broker decide
@@ -287,13 +352,11 @@ grants. The MCP server independently checks the stored principal. The Session's
 `call` must carry `McpExecutionContext.access` into its ordinary Mycelium
 execution, including direct tools, without persisting request callbacks.
 
-MCP execution requires approval for every write-level operation not covered by
-the catalog snapshot's `approvedWrites`, including unlabelled operations. Read
-operations retain their declared confirmation policy. `approvedWrites` names
-granted modules whose writes a person already approved for that principal; it is
-read from the current snapshot at each call, and an operation labelled `confirm`
-still asks. Form elicitation runs before the operation, and authority is
-refreshed again after acceptance; missing or declined approval refuses
+MCP does not force confirmation for every write. The host's durable approval
+owner decides whether a write applies, waits for approval or is denied; the
+catalog's grants remain authority ceilings, not approval decisions. Explicit
+operation-level confirmation labels still use form elicitation and refresh
+authority after acceptance. Missing or declined explicit confirmation refuses
 execution. The server supports MCP `2025-11-25` Streamable HTTP so an approval
 can suspend the existing execution without replaying already-completed
 operations. Approval requests contain the module, operation and access label,

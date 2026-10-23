@@ -82,7 +82,8 @@ export type AccessRefusal = Readonly<{
  * Host-supplied access data and the one way to ask a person. Every field is
  * optional: hosted defaults allow unnamed modules, and no `confirm` means an
  * operation requiring approval is refused, never run unasked. MCP catalogs
- * explicitly default unnamed modules to none and require approval for writes.
+ * explicitly default unnamed modules to none. Native hosts own durable approval
+ * policy for admitted writes; explicit author confirmation still uses this port.
  */
 export type AccessOptions = Readonly<{
   /** Grant for unnamed modules; MCP catalogs use none. Defaults to write for hosted callers. */
@@ -104,12 +105,6 @@ export type AccessOptions = Readonly<{
   beforeCall?: (signal: AbortSignal) => Promise<void>;
   /** Require approval for every write, including operations without an explicit confirm label. */
   confirmWrites?: boolean;
-  /**
-   * Read, at every call, the module ids whose writes a person already
-   * approved for this caller. Such a write needs no per-call `confirm`; an
-   * operation its author labelled `confirm` still asks, and grants still apply.
-   */
-  approvedWrites?: (context: AccessContext) => readonly string[];
   /** Ask a person to approve one call; resolve true to run it. */
   confirm?:
     | ((request: ConfirmRequest, signal: AbortSignal) => Promise<boolean>)
@@ -237,11 +232,6 @@ async function decide(
   if (
     !label.confirm &&
     !(options.confirmWrites === true && label.access !== "read")
-  )
-    return undefined;
-  if (
-    !label.confirm &&
-    options.approvedWrites?.(context).includes(label.module) === true
   )
     return undefined;
   if (options.confirm === undefined)

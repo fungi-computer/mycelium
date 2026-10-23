@@ -24,7 +24,6 @@
     "noEmit": true,
     "skipLibCheck": true,
     "types": ["node", "vitest/globals"],
-    "baseUrl": ".",
     "paths": {
       "@fungi.computer/mycelium": ["./src/index.ts"],
       "@fungi.computer/mycelium/effect": ["./src/effect.ts"],

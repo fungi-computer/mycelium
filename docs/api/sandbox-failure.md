@@ -312,6 +312,95 @@ Data.TaggedError("DeadlineExceeded").acknowledged;
 
 ---
 
+### SandboxBusy
+
+Admission expired before any sandbox work started.
+
+#### Extends
+
+- `YieldableError`\<`this`\> & `object` &
+  `Readonly`\<[`SandboxFailureReference`](#sandboxfailurereference) & `object`\>
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new SandboxBusy(args): SandboxBusy;
+```
+
+###### Parameters
+
+| Parameter       | Type                                                                |
+| --------------- | ------------------------------------------------------------------- |
+| `args`          | \{ `ref?`: `string`; `capacity`: `number`; `waitedMs`: `number`; \} |
+| `args.ref?`     | `string`                                                            |
+| `args.capacity` | `number`                                                            |
+| `args.waitedMs` | `number`                                                            |
+
+###### Returns
+
+[`SandboxBusy`](#sandboxbusy)
+
+###### Inherited from
+
+```ts
+Data.TaggedError("SandboxBusy")<
+  SandboxFailureReference & {
+    readonly capacity: number;
+    readonly waitedMs: number;
+  }
+>.constructor
+```
+
+#### Properties
+
+##### ref?
+
+```ts
+readonly optional ref?: string;
+```
+
+###### Inherited from
+
+```ts
+Data.TaggedError("SandboxBusy").ref;
+```
+
+##### capacity
+
+```ts
+readonly capacity: number;
+```
+
+###### Inherited from
+
+```ts
+Data.TaggedError("SandboxBusy").capacity;
+```
+
+##### waitedMs
+
+```ts
+readonly waitedMs: number;
+```
+
+###### Inherited from
+
+```ts
+Data.TaggedError("SandboxBusy").waitedMs;
+```
+
+##### code
+
+```ts
+readonly code: "sandbox-busy" = "sandbox-busy";
+```
+
+Stable contention code, not a sandbox health failure.
+
+---
+
 ### Cancelled
 
 The invocation owner accepted cancellation.
@@ -1078,6 +1167,7 @@ type SandboxFailure =
   | SourceInvalid
   | GuestThrew
   | DeadlineExceeded
+  | SandboxBusy
   | Cancelled
   | DispatchLost
   | SandboxCrashed

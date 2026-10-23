@@ -378,7 +378,6 @@ type AccessOptions = Readonly<{
   sessionGrants?: (context) => Grants;
   beforeCall?: (signal) => Promise<void>;
   confirmWrites?: boolean;
-  approvedWrites?: (context) => readonly string[];
   confirm?: (request, signal) => Promise<boolean>;
   onRefused?: (refusal, context) => void;
 }>;
@@ -387,7 +386,8 @@ type AccessOptions = Readonly<{
 Host-supplied access data and the one way to ask a person. Every field is
 optional: hosted defaults allow unnamed modules, and no `confirm` means an
 operation requiring approval is refused, never run unasked. MCP catalogs
-explicitly default unnamed modules to none and require approval for writes.
+explicitly default unnamed modules to none. Native hosts own durable approval
+policy for admitted writes; explicit author confirmation still uses this port.
 
 ---
 
@@ -503,10 +503,11 @@ Closed failure vocabulary for the first Mycelium runtime slice.
 type ExecutionOptions = Readonly<{
   timeoutMs?: number;
   abortGraceMs?: number;
-}>;
+}> &
+  SandboxAdmissionOptions;
 ```
 
-Host-selectable execution limits; neither budget can be disabled.
+Host execution limits plus the reserved, host-only admission contract.
 
 ---
 
@@ -515,7 +516,7 @@ Host-selectable execution limits; neither budget can be disabled.
 ```ts
 type CollectedImage = Readonly<{
   data: string;
-  mimeType: "image/jpeg" | "image/png" | "image/webp";
+  mimeType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
   path: string;
   bytes: number;
 }>;
@@ -543,10 +544,14 @@ The collector as one execution's operations see it: push only.
 type InvocationContext = Readonly<{
   executionId: string;
   toolCallId?: string;
+  operationOrdinal?: number;
   toolCallCode?: string;
   deadlineAt: number | null;
   signal: AbortSignal;
   images?: ExecutionImages;
+  output?: Readonly<{
+    write: (stream, bytes) => void;
+  }>;
 }>;
 ```
 
@@ -835,6 +840,32 @@ Asked before every call of a gated module's operations.
 
 ---
 
+### SandboxAdmissionOptions
+
+```ts
+type SandboxAdmissionOptions = Readonly<{
+  sandboxCapacity?: number;
+  admissionWaitMs?: number;
+}>;
+```
+
+Host-owned admission inputs; never part of guest execute arguments.
+
+---
+
+### SandboxAdmissionPolicy
+
+```ts
+type SandboxAdmissionPolicy = Readonly<{
+  capacity: number;
+  waitMs: number;
+}>;
+```
+
+Captured once per runtime and shared across backing-work groups.
+
+---
+
 ### SandboxFailureEvent
 
 ```ts
@@ -925,6 +956,7 @@ const SandboxFailureEventSchema: Struct<{
       "SourceInvalid",
       "GuestThrew",
       "DeadlineExceeded",
+      "SandboxBusy",
       "Cancelled",
       "DispatchLost",
       "SandboxCrashed",
@@ -941,6 +973,31 @@ const SandboxFailureEventSchema: Struct<{
 ```
 
 Shared structural grammar for durable operator facts and client inspection.
+
+## Functions
+
+### normalizeSandboxAdmissionPolicy()
+
+```ts
+function normalizeSandboxAdmissionPolicy(
+  options,
+  availableCores?,
+): SandboxAdmissionPolicy;
+```
+
+Validate host policy and resolve defaults from a platform-owned core
+observation.
+
+#### Parameters
+
+| Parameter         | Type                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| `options`         | \| `Readonly`\<\{ `sandboxCapacity?`: `number`; `admissionWaitMs?`: `number`; \}\> \| `undefined` |
+| `availableCores?` | `number`                                                                                          |
+
+#### Returns
+
+[`SandboxAdmissionPolicy`](#sandboxadmissionpolicy)
 
 ## References
 
@@ -1007,6 +1064,12 @@ Re-exports [GuestThrew](sandbox-failure.md#guestthrew)
 ### DeadlineExceeded
 
 Re-exports [DeadlineExceeded](sandbox-failure.md#deadlineexceeded)
+
+---
+
+### SandboxBusy
+
+Re-exports [SandboxBusy](sandbox-failure.md#sandboxbusy)
 
 ---
 

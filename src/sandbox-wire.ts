@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   SourceInvalid,
   DeadlineExceeded,
+  SandboxBusy,
   ResultNotJson,
   SandboxCrashed,
   BadResponse,
@@ -39,6 +40,12 @@ export const sandboxWireSchema = z.discriminatedUnion("ok", [
         kind: z.literal("deadline_exceeded"),
         limitMs: z.number().int().positive(),
         elapsedMs: z.number().nonnegative(),
+      }),
+      z.strictObject({
+        kind: z.literal("sandbox_busy"),
+        code: z.literal("sandbox-busy"),
+        capacity: z.int().positive(),
+        waitedMs: z.number().nonnegative(),
       }),
       z.strictObject({
         kind: z.literal("result_not_json"),
@@ -103,6 +110,11 @@ export function sandboxWireFailure(
       return sandboxGuestFailure(error);
     case "deadline_exceeded":
       return new DeadlineExceeded(error);
+    case "sandbox_busy":
+      return new SandboxBusy({
+        capacity: error.capacity,
+        waitedMs: error.waitedMs,
+      });
     case "result_not_json":
       return new ResultNotJson({
         kind: error.valueKind,
@@ -153,6 +165,14 @@ export function sandboxFailureWire(
         kind: "deadline_exceeded",
         limitMs: failure.limitMs,
         elapsedMs: failure.elapsedMs,
+      };
+      break;
+    case "SandboxBusy":
+      error = {
+        kind: "sandbox_busy",
+        code: failure.code,
+        capacity: failure.capacity,
+        waitedMs: failure.waitedMs,
       };
       break;
     case "Cancelled":

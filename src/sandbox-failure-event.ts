@@ -32,6 +32,7 @@ export const SandboxFailureEventSchema = Schema.Struct({
     "SourceInvalid",
     "GuestThrew",
     "DeadlineExceeded",
+    "SandboxBusy",
     "Cancelled",
     "DispatchLost",
     "SandboxCrashed",

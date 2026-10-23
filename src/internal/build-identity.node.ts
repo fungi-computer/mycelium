@@ -3,7 +3,7 @@ import { URL } from "node:url";
 
 // Node-only variant of build-identity.ts, selected only by the package's
 // `#build-identity` internal import (package.json `imports`, `node`
-// condition) -- a literal Node process (apps/exec, services/agent-host,
+// condition) -- a literal Node process (apps/exec,
 // runtimes/local's non-bundled dist, this package's own tests) always
 // activates that condition; no bundler build target in this repo does
 // (demo and the Electron probe build with esbuild `platform: "browser"`;

@@ -5,7 +5,7 @@ import * as Stream from "effect/Stream";
 import { expect, it } from "vitest";
 
 import type { SandboxFailureEvent } from "../src/sandbox-failure-event.js";
-import { CapabilityFailed } from "../src/sandbox-failure.js";
+import { CapabilityFailed, SandboxBusy } from "../src/sandbox-failure.js";
 import { fromTypedSandbox, make } from "../src/effect.js";
 import {
   Mycelium,
@@ -20,6 +20,55 @@ import { z } from "zod";
 async function foreignRejection(cause: unknown): Promise<never> {
   await Promise.resolve();
   throw cause;
+}
+
+for (const adapter of ["promise", "effect"] as const) {
+  it(`${adapter}: preserves typed sandbox-busy through the real execute tool`, async () => {
+    const events: SandboxFailureEvent[] = [];
+    const busy = new SandboxBusy({ capacity: 12, waitedMs: 1_000 });
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = yield* make({
+            sandbox:
+              adapter === "promise"
+                ? fromTypedSandbox({ execute: () => Promise.reject(busy) })
+                : { execute: () => Effect.fail(busy) },
+            onSandboxFailure: (event) =>
+              Effect.sync(() => {
+                events.push(event);
+              }),
+          });
+          const lease = yield* runtime.acquire();
+          const prepared = yield* lease.executeTool.prepare({
+            type: "toolCall",
+            id: "busy",
+            name: "execute",
+            arguments: { code: "return 1" },
+          });
+          return yield* Effect.flip(Stream.runCollect(prepared.execute()));
+        }),
+      ),
+    );
+    expect(result).toMatchObject({
+      _tag: "MuleError",
+      phase: "tool",
+      cause: {
+        _tag: "SandboxBusy",
+        code: "sandbox-busy",
+        capacity: 12,
+        waitedMs: 1_000,
+      },
+    });
+    expect(result.message).toContain("sandbox-busy");
+    expect(result.message).toContain("Nothing ran");
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      tag: "SandboxBusy",
+      fields: { code: "sandbox-busy", capacity: 12, waitedMs: 1_000 },
+      healthAlert: false,
+    });
+  });
 }
 
 for (const adapter of ["promise", "effect"] as const) {
@@ -176,11 +225,18 @@ it("leases one ordinary Mule execute tool", async () => {
     ),
   );
 
+  expect(result.descriptor.description).toContain(
+    "double each backslash the shell needs",
+  );
+  expect(result.descriptor.description).toContain(String.raw`\\(`);
+  expect(result.descriptor.description).toContain(
+    "Never shadow injected module names with local bindings.",
+  );
   expect(result).toEqual({
     descriptor: {
       name: "execute",
       description:
-        "Run async JavaScript in the sandbox. To enumerate all available operations, use forage.list({limit:50}) and follow nextCursor until null; optionally filter by namespace. Use await forage.search({ query: ... }) with short operation keywords, such as read or shell. Search matches operation names and descriptions; if no results match, retry with one relevant keyword. Then use await forage.describe({ path: ... }) to inspect the input before calling an operation. Describe known paths directly. For multiline shell commands, put the command in a JavaScript template literal, for example const command = `pwd\\nprintf done`; a physical newline inside a double-quoted JavaScript string is invalid source. Code is evaluated as JavaScript before shell commands run: if a shell command needs a backslash, write it doubled in the JavaScript string (for example, `\\\\(` passes `\\(` to the shell; `\\(` becomes `(`). For file edits, prefer Files operations when available. Explicitly return the final value. For shell or process results, inspect status, exitCode, and stderr when present before treating the operation as successful. Each execute call runs in a fresh sandbox: no variable, function, or other global survives from a previous call, so redefine any helpers you need every time, or persist state to a file and read it back instead.",
+        'Run async JavaScript in the sandbox. Each call is a fresh sandbox, not a REPL: nothing survives between calls, so redefine helpers or persist state to a file. Never shadow injected module names with local bindings. Find operations with await forage.search({ query }) using one short keyword such as read or shell, or page them all with forage.list({limit:50}), optionally by namespace, until nextCursor is null. Inspect input with await forage.describe({ path }) before calling; describe known paths directly. Call an operation as await env.<path>({ ... }) with the exact dotted path, for example await env.computers.local.exec({ command: "pwd" }); a bare computers.local.exec is not defined. Put multiline shell commands in a template literal. Code is JavaScript first, so double each backslash the shell needs (`\\\\(` passes `\\(`; `\\(` becomes `(`). For file edits, prefer Files operations when available. Explicitly return the final value. Before treating a shell or process result as success, check status, exitCode and stderr.',
       parameters: {
         type: "object",
         properties: { code: { type: "string" } },
@@ -258,7 +314,7 @@ function runWithPics(
   );
 }
 
-it("appends images an operation pushed through its context after the text, with their details", async () => {
+it("appends images after the model text and keeps their display metadata in data", async () => {
   const result = await runWithPics(async (view) => [
     await view("/a.png"),
     await view("/b.png"),
@@ -277,7 +333,7 @@ it("appends images an operation pushed through its context after the text, with 
             { type: "image", data: pixel.data, mimeType: "image/png" },
             { type: "image", data: pixel.data, mimeType: "image/png" },
           ],
-          details: {
+          data: {
             images: [
               { bytes: 5, mimeType: "image/png", path: "/a.png" },
               { bytes: 5, mimeType: "image/png", path: "/b.png" },

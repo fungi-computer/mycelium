@@ -650,7 +650,7 @@ describe("Mycelium capability plane", () => {
   });
 });
 
-it("runtime admits eight backing executions and rejects the ninth before sandbox start", async () => {
+it("runtime admits configured backing capacity and bounds the next wait before sandbox start", async () => {
   const executionIndexes = Array.from({ length: 10 }, (_, index) => index);
   const hostInvocationIndexes: number[] = [];
   await Effect.runPromise(
@@ -667,7 +667,12 @@ it("runtime admits eight backing executions and rejects the ninth before sandbox
         );
         const runtime = yield* makeEffect({
           modules: [],
-          execution: { timeoutMs: 60_000, abortGraceMs: 30_000 },
+          execution: {
+            timeoutMs: 60_000,
+            abortGraceMs: 30_000,
+            sandboxCapacity: 8,
+            admissionWaitMs: 1,
+          },
           sandbox: {
             execute: (request) => {
               const executionIndex = Number(request.code);
@@ -777,6 +782,7 @@ it("runtime admits eight backing executions and rejects the ninth before sandbox
           }
 
           const ninthFiber = yield* Effect.forkChild(run(8));
+          yield* TestClock.adjust("1 millis");
           const ninthFirst = yield* observeBounded(
             Fiber.await(ninthFiber).pipe(Effect.as("settled" as const)),
             Deferred.await(ninthFixture.started).pipe(
@@ -807,10 +813,12 @@ it("runtime admits eight backing executions and rejects the ninth before sandbox
           expect(
             Option.isSome(ninthFailure) ? ninthFailure.value : undefined,
           ).toHaveProperty(
-            "message",
-            expect.stringMatching(
-              /^Sandbox execution capacity unavailable \(ref /u,
-            ),
+            "cause",
+            expect.objectContaining({
+              _tag: "SandboxBusy",
+              capacity: 8,
+              waitedMs: 1,
+            }),
           );
 
           yield* Deferred.succeed(firstOriginal.fixture.release, undefined);
@@ -885,7 +893,11 @@ it("already cancelled invocation starts no sandbox and consumes no backing capac
         const runtime = yield* Effect.promise(() =>
           Mycelium.make({
             modules: [],
-            execution: { timeoutMs: 60_000, abortGraceMs: 30_000 },
+            execution: {
+              timeoutMs: 60_000,
+              abortGraceMs: 30_000,
+              sandboxCapacity: 8,
+            },
             sandbox: {
               execute: (request) => {
                 const executionIndex = Number(request.code);
@@ -1287,7 +1299,12 @@ it("late sandbox success or failure only releases its runtime tracker slot", asy
         );
         const runtime = yield* makeEffect({
           modules: [],
-          execution: { timeoutMs: 100, abortGraceMs: 50 },
+          execution: {
+            timeoutMs: 100,
+            abortGraceMs: 50,
+            sandboxCapacity: 8,
+            admissionWaitMs: 1,
+          },
           sandbox: {
             execute: (request) => {
               const executionIndex = Number(request.code);
@@ -1387,6 +1404,7 @@ it("late sandbox success or failure only releases its runtime tracker slot", asy
               throw new Error("Expected capacity-rejection fixture");
             }
             const fiber = yield* Effect.forkChild(run(executionIndex, []));
+            yield* TestClock.adjust("1 millis");
             const first = yield* observeBounded(
               Fiber.await(fiber).pipe(Effect.as("settled" as const)),
               Deferred.await(fixture.started).pipe(
@@ -1407,10 +1425,12 @@ it("late sandbox success or failure only releases its runtime tracker slot", asy
             expect(
               Option.isSome(failure) ? failure.value : undefined,
             ).toHaveProperty(
-              "message",
-              expect.stringMatching(
-                /^Sandbox execution capacity unavailable \(ref /u,
-              ),
+              "cause",
+              expect.objectContaining({
+                _tag: "SandboxBusy",
+                capacity: 8,
+                waitedMs: 1,
+              }),
             );
             expect(Option.isNone(yield* Deferred.poll(fixture.started))).toBe(
               true,

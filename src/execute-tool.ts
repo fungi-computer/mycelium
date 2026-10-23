@@ -1,5 +1,9 @@
 import { isSandboxFailure } from "./sandbox-boundary.js";
-import { ResultTooLarge, sandboxFailureMessage } from "./sandbox-failure.js";
+import {
+  ResultTooLarge,
+  SandboxBusy,
+  sandboxFailureMessage,
+} from "./sandbox-failure.js";
 import { nanoid } from "@fungi.computer/cairn";
 import {
   forageDescribeInput,
@@ -16,6 +20,7 @@ import {
   type MuleToolResult,
 } from "@fungi.computer/mule/effect";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
@@ -29,24 +34,27 @@ import {
   type SerializedSandboxValue,
 } from "./internal/execution-lifecycle.js";
 import { ImageCollector, type CollectedImage } from "./image-collector.js";
+import { OutputCollector } from "./output-collector.js";
 import { InvalidOperationInput, type MyceliumError } from "./errors.js";
 import type { z } from "zod";
 import type { InvocationContext, SandboxValue } from "./index.js";
 import type { EffectSandbox } from "./runtime.js";
+import type { SandboxAdmissionOptions } from "./sandbox-admission.js";
 
 /** The one outer Mule input authority for the Mycelium execute door. */
 const ExecuteInputSchema = Schema.Struct({ code: Schema.String });
 
 const executeDescription =
-  "Run async JavaScript in the sandbox. To enumerate all available operations, use forage.list({limit:50}) and follow nextCursor until null; optionally filter by namespace. Use await forage.search({ query: ... }) with short operation keywords, such as read or shell. Search matches operation names and descriptions; if no results match, retry with one relevant keyword. Then use await forage.describe({ path: ... }) to inspect the input before calling an operation. Describe known paths directly. For multiline shell commands, put the command in a JavaScript template literal, for example const command = `pwd\\nprintf done`; a physical newline inside a double-quoted JavaScript string is invalid source. Code is evaluated as JavaScript before shell commands run: if a shell command needs a backslash, write it doubled in the JavaScript string (for example, `\\\\(` passes `\\(` to the shell; `\\(` becomes `(`). For file edits, prefer Files operations when available. Explicitly return the final value. For shell or process results, inspect status, exitCode, and stderr when present before treating the operation as successful. Each execute call runs in a fresh sandbox: no variable, function, or other global survives from a previous call, so redefine any helpers you need every time, or persist state to a file and read it back instead.";
+  'Run async JavaScript in the sandbox. Each call is a fresh sandbox, not a REPL: nothing survives between calls, so redefine helpers or persist state to a file. Never shadow injected module names with local bindings. Find operations with await forage.search({ query }) using one short keyword such as read or shell, or page them all with forage.list({limit:50}), optionally by namespace, until nextCursor is null. Inspect input with await forage.describe({ path }) before calling; describe known paths directly. Call an operation as await env.<path>({ ... }) with the exact dotted path, for example await env.computers.local.exec({ command: "pwd" }); a bare computers.local.exec is not defined. Put multiline shell commands in a template literal. Code is JavaScript first, so double each backslash the shell needs (`\\\\(` passes `\\(`; `\\(` becomes `(`). For file edits, prefer Files operations when available. Explicitly return the final value. Before treating a shell or process result as success, check status, exitCode and stderr.';
 
-/** Host-selectable execution limits; neither budget can be disabled. */
+/** Host execution limits plus the reserved, host-only admission contract. */
 export type ExecutionOptions = Readonly<{
   /** Total execution deadline in milliseconds. */
   timeoutMs?: number;
   /** Maximum acknowledgement wait after cancellation in milliseconds. */
   abortGraceMs?: number;
-}>;
+}> &
+  SandboxAdmissionOptions;
 
 /** One bound operation: its labels are checked against the host's grants first. */
 function guardedInvoke(
@@ -79,6 +87,9 @@ function operationBindings(
   access: AccessOptions,
   sessionId: string | null,
 ): RawBindings {
+  // One counter per execute, shared by every bound method. Allocate before
+  // awaiting access or operation work, not in asynchronous completion order.
+  let nextOperationOrdinal = 0;
   const groups = new Map<
     string,
     Map<string, (input: SandboxValue) => Promise<SandboxValue>>
@@ -89,7 +100,17 @@ function operationBindings(
     const group =
       groups.get(namespace) ??
       new Map<string, (input: SandboxValue) => Promise<SandboxValue>>();
-    group.set(operationName, guardedInvoke(entry, context, access, sessionId));
+    group.set(operationName, (input) =>
+      guardedInvoke(
+        entry,
+        Object.freeze({
+          ...context,
+          operationOrdinal: nextOperationOrdinal++,
+        }),
+        access,
+        sessionId,
+      )(input),
+    );
     groups.set(namespace, group);
   }
   return Object.freeze(
@@ -168,10 +189,12 @@ export function createExecuteDoor(
     code: string,
     signal: AbortSignal | undefined,
     toolCallId?: string,
+    output?: InvocationContext["output"],
   ): Effect.Effect<SerializedSandboxValue, MyceliumError> =>
     runExecution({
       executionId,
       toolCallId,
+      output,
       images: Object.freeze({
         push: (image: CollectedImage) =>
           imageCollector.push(executionId, image),
@@ -215,11 +238,12 @@ export function createExecuteDoor(
   const executeTerminal = (
     code: string,
     toolCallId: string,
+    output: NonNullable<InvocationContext["output"]>,
   ): Effect.Effect<MuleToolExecutionPart, MuleError> =>
     Effect.suspend(() => {
       const executionId = nanoid();
       const drain = () => imageCollector.drain(executionId);
-      return run(executionId, code, undefined, toolCallId).pipe(
+      return run(executionId, code, undefined, toolCallId, output).pipe(
         Effect.matchEffect({
           onSuccess: (value) =>
             Effect.succeed(
@@ -259,7 +283,45 @@ export function createExecuteDoor(
     prepare: (call) =>
       Schema.decodeUnknownEffect(ExecuteInputSchema)(call.arguments).pipe(
         Effect.map(({ code }) => ({
-          execute: () => Stream.fromEffect(executeTerminal(code, call.id)),
+          execute: () =>
+            Stream.unwrap(
+              Effect.gen(function* () {
+                const collector = yield* OutputCollector.make();
+                yield* Effect.addFinalizer(() =>
+                  Effect.sync(() => {
+                    collector.dispose();
+                  }),
+                );
+                // Start execution in this stream's scope before starting readers:
+                // admission/deadlines must not wait for an output subscriber.
+                const execution = yield* Effect.forkScoped(
+                  executeTerminal(code, call.id, {
+                    write: (stream, bytes) => {
+                      collector.write(stream, bytes);
+                    },
+                  }),
+                  { startImmediately: true },
+                );
+                return Stream.merge(
+                  collector.updates,
+                  Stream.fromEffect(Fiber.await(execution)).pipe(
+                    Stream.flatMap((exit) => {
+                      const finalOutput = collector.finish();
+                      // Observe completion as data so diagnostics precede either
+                      // outcome. Re-yield the original Exit (including its Cause);
+                      // Mule alone projects failures into error terminal results.
+                      return Stream.concat(
+                        Stream.fromIterable(
+                          finalOutput === undefined ? [] : [finalOutput],
+                        ),
+                        Stream.fromEffect(exit),
+                      );
+                    }),
+                  ),
+                  { haltStrategy: "right" },
+                ).pipe(Stream.takeUntil((part) => part.type === "result"));
+              }),
+            ),
         })),
         Effect.mapError(() => ({ message: "Invalid execute arguments" })),
       ),
@@ -271,7 +333,7 @@ export function createExecuteDoor(
  * Project one finished run into Mule's only terminal part. Each collected
  * image becomes an {@link ImageContent} part after the text, the same
  * `MuleToolResult.content` every other tool result uses; its path, size and
- * type go into `details`.
+ * type go into application `data`, separate from the model content.
  */
 function terminal(
   head: Readonly<{ text: string; isError: boolean }>,
@@ -288,7 +350,7 @@ function terminal(
   ];
   if (collected.length === 0)
     return { type: "result", result: { content, isError: head.isError } };
-  const details = {
+  const data = {
     images: collected.map((image) => ({
       bytes: image.bytes,
       mimeType: image.mimeType,
@@ -297,16 +359,17 @@ function terminal(
   };
   return {
     type: "result",
-    result: { content, details, isError: head.isError },
+    result: { content, data, isError: head.isError },
   };
 }
 
 function toMuleError(error: MyceliumError): MuleError {
-  return {
+  const result = {
     _tag: "MuleError",
     phase: "tool",
     message: isSandboxFailure(error)
       ? sandboxFailureMessage(error)
       : error.message,
-  };
+  } satisfies MuleError;
+  return error instanceof SandboxBusy ? { ...result, cause: error } : result;
 }
