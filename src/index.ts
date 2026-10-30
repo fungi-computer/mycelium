@@ -10,7 +10,7 @@ export {
   type SandboxAdmissionPolicy,
 } from "./sandbox-admission.js";
 import type { MuleTool } from "@fungi.computer/mule/effect";
-import type { Sandbox, MyceliumJsonValue } from "./sandbox.js";
+import type { Sandbox } from "./sandbox.js";
 export type {
   MyceliumJsonValue,
   SandboxValue,
@@ -244,7 +244,7 @@ function operation<I, O>(
     readonly output: Schema.Codec<O, unknown>;
   },
 ): OperationRegistration<I, O>;
-function operation<I, O extends MyceliumJsonValue>(
+function operation<I, O extends Schema.Json>(
   definition: OperationDefinition<I, O>,
 ): OperationRegistration<I, O>;
 function operation<I, O>(
@@ -264,7 +264,7 @@ export type MyceliumApi = Readonly<{
   /**
    * Declare one schema-described operation behind the execute door. An Effect
    * output schema encodes the result to JSON; otherwise the result must
-   * already be a JSON value.
+   * already be a JSON value, which may be readonly.
    */
   operation: {
     <I, O>(
@@ -272,7 +272,7 @@ export type MyceliumApi = Readonly<{
         readonly output: Schema.Codec<O, unknown>;
       },
     ): OperationRegistration<I, O>;
-    <I, O extends MyceliumJsonValue>(
+    <I, O extends Schema.Json>(
       definition: OperationDefinition<I, O>,
     ): OperationRegistration<I, O>;
   };

@@ -8,6 +8,64 @@ import { expect, it } from "vitest";
 import { make, type Lease } from "../src/effect.js";
 import { MyceliumClosedError, type SandboxFailureEvent } from "../src/index.js";
 
+it("a waiter admitted within its timeout runs once", async () => {
+  await Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        const started = yield* Deferred.make<undefined>();
+        const release = yield* Deferred.make<undefined>();
+        const dispatched: string[] = [];
+        const failures: SandboxFailureEvent[] = [];
+        const runtime = yield* make({
+          execution: { sandboxCapacity: 1, timeoutMs: 20_000 },
+          onSandboxFailure: (event) =>
+            Effect.sync(() => {
+              failures.push(event);
+            }),
+          sandbox: {
+            execute: (request) =>
+              Effect.gen(function* () {
+                dispatched.push(request.code);
+                if (request.code === "return 'held'") {
+                  yield* Deferred.succeed(started, undefined);
+                  yield* Deferred.await(release);
+                }
+                return null;
+              }),
+          },
+        });
+        const lease = yield* runtime.acquire();
+        const run = (code: string) =>
+          Effect.gen(function* () {
+            const prepared = yield* lease.executeTool.prepare({
+              type: "toolCall",
+              id: code,
+              name: "execute",
+              arguments: { code },
+            });
+            return yield* Stream.runCollect(prepared.execute());
+          });
+        const held = yield* Effect.forkChild(run("return 'held'"));
+        try {
+          yield* Deferred.await(started);
+          const waiting = yield* Effect.forkChild(
+            Effect.exit(run("return 'queued'")),
+          );
+          yield* TestClock.adjust("6000 millis");
+          expect(dispatched).toEqual(["return 'held'"]);
+          yield* Deferred.succeed(release, undefined);
+          yield* Fiber.join(held);
+          expect(yield* Fiber.join(waiting)).toMatchObject({ _tag: "Success" });
+          expect(dispatched).toEqual(["return 'held'", "return 'queued'"]);
+          expect(failures).toEqual([]);
+        } finally {
+          yield* Deferred.succeed(release, undefined);
+        }
+      }),
+    ).pipe(Effect.provide(TestClock.layer())),
+  );
+});
+
 it("shares permits across revisions and retains queued source work through close without holding the lifecycle gate", async () => {
   await Effect.runPromise(
     Effect.scoped(

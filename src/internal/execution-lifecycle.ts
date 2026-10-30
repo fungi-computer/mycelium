@@ -91,13 +91,14 @@ export function normalizeExecutionPolicy(
   if (!parsed.success) {
     throw new MyceliumDefinitionError("Execution policy is invalid");
   }
+  const timeoutMs = parsed.data?.timeoutMs ?? 180_000;
   return Object.freeze({
-    timeoutMs: parsed.data?.timeoutMs ?? 180_000,
+    timeoutMs,
     abortGraceMs: parsed.data?.abortGraceMs ?? 5_000,
     ...normalizeSandboxAdmissionPolicy(
       {
         sandboxCapacity: parsed.data?.sandboxCapacity,
-        admissionWaitMs: parsed.data?.admissionWaitMs,
+        admissionWaitMs: parsed.data?.admissionWaitMs ?? timeoutMs,
       },
       parsed.data?.sandboxCapacity === undefined
         ? availableHostCores()

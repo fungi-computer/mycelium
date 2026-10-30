@@ -163,13 +163,18 @@ export function openCoreRuntime(
       onFailure: options.onSandboxFailure,
       execution,
     });
-    const staticSurface = yield* Effect.try({
-      try: () => compileSurface(options.modules),
-      catch: (cause) =>
-        cause instanceof MyceliumDefinitionError
-          ? cause
-          : new MyceliumDefinitionError("Capability compilation failed"),
-    });
+    // A source-only runtime has no static definitions to validate. Its empty
+    // surface would be discarded; acquisition compiles the captured modules.
+    const staticSurface =
+      options.modules.length === 0 && options.sources.length > 0
+        ? undefined
+        : yield* Effect.try({
+            try: () => compileSurface(options.modules),
+            catch: (cause) =>
+              cause instanceof MyceliumDefinitionError
+                ? cause
+                : new MyceliumDefinitionError("Capability compilation failed"),
+          });
     const tools = yield* Effect.try({
       try: () =>
         Object.freeze(
@@ -188,7 +193,7 @@ export function openCoreRuntime(
     const liveRevisions = new Set<InstalledRevision>();
     let closed = false;
 
-    if (options.sources.length === 0) {
+    if (options.sources.length === 0 && staticSurface !== undefined) {
       const candidate = yield* acquireSourceCandidate({
         ...options,
         sandbox,

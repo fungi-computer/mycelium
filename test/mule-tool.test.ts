@@ -225,6 +225,12 @@ it("leases one ordinary Mule execute tool", async () => {
     ),
   );
 
+  expect(result.descriptor.description).toMatch(
+    /^Inside execute, call forage\.search, forage\.list or forage\.describe /u,
+  );
+  expect(result.descriptor.description).toContain(
+    "forage is available only there, not as a separate tool.",
+  );
   expect(result.descriptor.description).toContain(
     "double each backslash the shell needs",
   );
@@ -236,6 +242,7 @@ it("leases one ordinary Mule execute tool", async () => {
     descriptor: {
       name: "execute",
       description:
+        "Inside execute, call forage.search, forage.list or forage.describe to discover operations and inspect their inputs. forage is available only there, not as a separate tool. " +
         'Run async JavaScript in the sandbox. Each call is a fresh sandbox, not a REPL: nothing survives between calls, so redefine helpers or persist state to a file. Never shadow injected module names with local bindings. Find operations with await forage.search({ query }) using one short keyword such as read or shell, or page them all with forage.list({limit:50}), optionally by namespace, until nextCursor is null. Inspect input with await forage.describe({ path }) before calling; describe known paths directly. Call an operation as await env.<path>({ ... }) with the exact dotted path, for example await env.computers.local.exec({ command: "pwd" }); a bare computers.local.exec is not defined. Put multiline shell commands in a template literal. Code is JavaScript first, so double each backslash the shell needs (`\\\\(` passes `\\(`; `\\(` becomes `(`). For file edits, prefer Files operations when available. Explicitly return the final value. Before treating a shell or process result as success, check status, exitCode and stderr.',
       parameters: {
         type: "object",

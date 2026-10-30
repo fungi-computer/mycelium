@@ -1,5 +1,24 @@
 # @fungi.computer/mycelium
 
+## 0.3.0
+
+### Minor Changes
+
+- Changes since 0.2.3:
+
+  - feat(repository): scope docs-only gates
+  - fix(forage): retain load-on-request App catalogs on current Integration
+  - fix(mycelium): scope forage discovery to execute
+  - fix(mycelium): decode live output in bounded chunks
+  - fix(mycelium): use the invocation timeout for capacity waits
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/forage@0.2.1
+  - @fungi.computer/puffball@0.3.0
+
 ## 0.2.3
 
 ### Patch Changes

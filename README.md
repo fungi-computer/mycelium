@@ -10,9 +10,10 @@ when the run ends. You can also execute a known operation without a model.
 npm install @fungi.computer/mycelium
 ```
 
-The package ships ESM only and depends on Zod, Effect, `acorn`,
-[Cairn](../cairn/README.md), [Forage](../forage/README.md), and
-[Mule](../mule/README.md) at runtime, all installed automatically. The root
+The package ships ESM only. Runtime dependencies include Zod, Effect, `acorn`,
+Cloudflare Code Mode, the MCP server SDK, [Cairn](../cairn/README.md),
+[Forage](../forage/README.md), [Mule](../mule/README.md) and
+[Puffball](../puffball/README.md), all installed automatically. The root
 entrypoint is the Promise host facade. `@fungi.computer/mycelium/effect`
 supplies the scoped Effect API. Both produce an Effect-native Mule tool. The
 `./sandbox-guest`, `./sandbox-wire`, `./sandbox-failure`, `./sandbox-boundary`,
@@ -223,17 +224,21 @@ Preserve that evidence without sending host diagnostics to the guest.
 ### Sandbox admission
 
 The host-only `execution` options accept `sandboxCapacity` (a positive safe
-integer) and `admissionWaitMs` (an integer from 1 to 900,000 milliseconds,
-default 5,000). Guests still submit only `code`. An omitted capacity derives
-from available cores, clamped to 2..32; hosts without a portable core
-observation use 2. Node captures its affinity-aware core count once per runtime
-through `node:os.availableParallelism()`, behind a platform-conditional module
-outside the Workers import graph. Explicit valid capacity overrides bypass
-observation and are not clamped, including values above 32.
+integer) and `admissionWaitMs` (an integer from 1 to 900,000 milliseconds). By
+default, admission waits for the invocation's `timeoutMs` budget (180,000
+milliseconds when omitted), rather than failing after five seconds. An explicit
+host wait remains bounded by the original invocation deadline. Guests still
+submit only `code`. An omitted capacity derives from available cores, clamped to
+2..32; hosts without a portable core observation use 2. Node captures its
+affinity-aware core count once per runtime through
+`node:os.availableParallelism()`, behind a platform-conditional module outside
+the Workers import graph. Explicit valid capacity overrides bypass observation
+and are not clamped, including values above 32.
 
 `normalizeSandboxAdmissionPolicy(options, availableCores?)` validates and
-resolves these host facts. It does not reserve a slot or start a sandbox. Both
-public runtime facades validate and capture the policy when the runtime opens.
+resolves these host facts, using 180,000 milliseconds when no wait is supplied.
+It does not reserve a slot or start a sandbox. Both public runtime facades
+validate and capture the policy when the runtime opens.
 
 Admission belongs to the existing runtime-wide backing-work tracker, not each
 lease, group, or revision. A full pool waits until a slot opens or the earlier

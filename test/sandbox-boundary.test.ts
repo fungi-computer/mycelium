@@ -40,19 +40,17 @@ describe("Codemode's safe failure envelope", () => {
     const failure = new CapabilityFailed({
       namespace: "forage",
       operation: "describe",
-      cause: { kind: "Unavailable", message: "forage.read refused: failed" },
+      cause: { kind: "Unavailable", message: "The operation failed." },
       rawCause: cause,
     });
     const boundary = sandboxBindingBoundary({});
     const transportMessage = boundary.capture(failure);
     const guest = sandboxGuestFailure({
       name: "BrokerRefusalError",
-      message: "forage.read refused: failed",
+      message: "The operation failed.",
       transportMessage,
     });
-    expect(sandboxFailureMessage(guest)).toContain(
-      "forage.read refused: failed",
-    );
+    expect(sandboxFailureMessage(guest)).toContain("The operation failed.");
     expect(sandboxFailureMessage(guest)).not.toContain(transportMessage);
     expect(boundary.recover(guest)).toMatchObject({
       _tag: "CapabilityFailed",

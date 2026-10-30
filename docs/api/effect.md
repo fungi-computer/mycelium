@@ -77,6 +77,17 @@ type Runtime = Readonly<{
 
 Warm Effect lifecycle for acquiring scope-owned run leases.
 
+## Variables
+
+### forageDiscoveryInstructions
+
+```ts
+const forageDiscoveryInstructions: "Inside execute, call forage.search, forage.list or forage.describe to discover operations and inspect their inputs. forage is available only there, not as a separate tool." =
+  "Inside execute, call forage.search, forage.list or forage.describe to discover operations and inspect their inputs. forage is available only there, not as a separate tool.";
+```
+
+Shared discovery scope for hosts offering Mycelium's execute tool.
+
 ## Functions
 
 ### fromTypedSandbox()

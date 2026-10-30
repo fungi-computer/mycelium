@@ -6,6 +6,25 @@ import { OutputCollector } from "../src/output-collector.js";
 
 const encode = (text: string) => new TextEncoder().encode(text);
 
+it("folds four MiB with split UTF-8 in less than one CPU second", () => {
+  const collector = Effect.runSync(OutputCollector.make());
+  const chunk = encode(`${"a".repeat(65533)}€`);
+  const start = process.cpuUsage();
+  for (let i = 0; i < 64; i++) {
+    collector.write("stdout", chunk.subarray(0, 65535));
+    collector.write("stdout", chunk.subarray(65535));
+  }
+  const cpu = process.cpuUsage(start);
+  expect(collector.snapshot()).toEqual({
+    tail: `${"a".repeat(8189)}€`,
+    totalBytes: 4194304,
+    droppedBytes: 4186112,
+  });
+  // CPU time excludes contention waits on shared builders. The byte loop uses
+  // several CPU seconds here; ordinary chunk decoding has ample headroom.
+  expect((cpu.user + cpu.system) / 1000).toBeLessThan(1000);
+}, 15_000);
+
 it.each(["stdout", "stderr"] as const)(
   "keeps a split %s scalar independent of the other stream and clips complete text",
   (stream) => {
@@ -70,6 +89,17 @@ it("counts raw bytes when malformed input emits a replacement and starts another
     tail: `€${"a".repeat(8189)}`,
     totalBytes: 8201,
     droppedBytes: 9,
+  });
+});
+
+it("clips a replacement and ASCII emitted together without charging display bytes as raw bytes", () => {
+  const collector = Effect.runSync(OutputCollector.make());
+  collector.write("stdout", new Uint8Array([0xe2, 0x41]));
+  collector.write("stderr", encode("a".repeat(8191)));
+  expect(collector.snapshot()).toEqual({
+    tail: "a".repeat(8191),
+    totalBytes: 8193,
+    droppedBytes: 2,
   });
 });
 

@@ -36,6 +36,6 @@ export function normalizeSandboxAdmissionPolicy(
   return Object.freeze({
     capacity:
       parsed.data.sandboxCapacity ?? Math.min(32, Math.max(2, cores.data)),
-    waitMs: parsed.data.admissionWaitMs ?? 5_000,
+    waitMs: parsed.data.admissionWaitMs ?? 180_000,
   });
 }

@@ -150,7 +150,7 @@
           {
             "title": "Install",
             "href": "/install/",
-            "description": "Peer dependencies on Zod, Effect and acorn, and the Node.js version."
+            "description": "Runtime dependencies on Zod, Effect and acorn, and the Node.js version."
           },
           {
             "title": "Status and limits",

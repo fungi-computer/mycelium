@@ -4,13 +4,18 @@ import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 
 const capacity = 8192;
+// Bound temporary decoded text and raw context even for a single huge write.
+const decodeCapacity = capacity * 4;
 const encoder = new TextEncoder();
 // fatal: false is the existing default; Cloudflare's type requires the field.
 const decoder = () =>
   new TextDecoder("utf-8", { ignoreBOM: true, fatal: false });
-type Producer = { decoder: ReturnType<typeof decoder>; pendingBytes: number };
+type Producer = { decoder: ReturnType<typeof decoder>; pending: Uint8Array };
 type TextPart = {
   text: string;
+  // Includes up to three trailing lookahead bytes, not charged to this part.
+  // null denotes an atomic EOF emission.
+  raw: Uint8Array | null;
   rawBytes: number;
   textBytes: number;
   newlines: number;
@@ -19,11 +24,11 @@ type TextPart = {
 /** Complete decoded text, in completion order across stdout/stderr, not byte order. */
 export class OutputCollector {
   readonly #producers = {
-    stdout: { decoder: decoder(), pendingBytes: 0 },
-    stderr: { decoder: decoder(), pendingBytes: 0 },
+    stdout: { decoder: decoder(), pending: new Uint8Array(0) },
+    stderr: { decoder: decoder(), pending: new Uint8Array(0) },
   } satisfies Record<"stdout" | "stderr", Producer>;
   readonly #probe = decoder();
-  // One bounded ring of complete decoder emissions. No UTF-8 slicing/parser.
+  // One bounded ring of decoded chunks. TextDecoder owns every UTF-8 boundary.
   readonly #parts = Array.from(
     { length: capacity },
     (): TextPart | undefined => undefined,
@@ -50,27 +55,34 @@ export class OutputCollector {
     if (this.#closed || bytes.length === 0) return;
     const producer = this.#producers[stream];
     this.#totalBytes += bytes.length;
-    // Byte-sized decoder inputs let each retained emission carry its exact raw
-    // cost, even when malformed input expands to replacement characters.
-    for (let i = 0; i < bytes.length; i++) {
-      const byte = bytes.subarray(i, i + 1);
-      producer.pendingBytes++;
-      const text = producer.decoder.decode(byte, { stream: true });
-      if (text.length === 0) continue;
-      // A decoder may emit a replacement for a prior incomplete sequence while
-      // buffering the current byte as the start of the next scalar. Ask the
-      // maintained decoder, rather than duplicating UTF-8 byte grammar.
-      const pending =
-        producer.pendingBytes > 1 &&
-        this.#probe.decode(byte, { stream: true }).length === 0
-          ? 1
-          : 0;
-      this.#probe.decode();
-      this.#append(text, producer.pendingBytes - pending);
-      producer.pendingBytes = pending;
+    for (let offset = 0; offset < bytes.length; offset += decodeCapacity) {
+      const chunk = bytes.subarray(offset, offset + decodeCapacity);
+      const text = producer.decoder.decode(chunk, { stream: true });
+      const raw = new Uint8Array(producer.pending.length + chunk.length);
+      raw.set(producer.pending);
+      raw.set(chunk, producer.pending.length);
+      const pending = this.#pendingLength(raw);
+      producer.pending = raw.slice(raw.length - pending);
+      this.#append(text, raw.length - pending, raw);
     }
     this.#dirty = true;
     Queue.offerUnsafe(this.wake, undefined);
+  }
+
+  #decodePrefix(raw: Uint8Array, length: number): string {
+    const text = this.#probe.decode(raw.subarray(0, length), { stream: true });
+    this.#probe.decode();
+    return text;
+  }
+
+  #pendingLength(raw: Uint8Array): number {
+    // UTF-8 has at most three incomplete bytes. Ask the maintained decoder
+    // which suffix is still incomplete; do not inspect UTF-8 byte patterns.
+    for (let length = 1; length <= Math.min(3, raw.length); length++) {
+      const suffix = raw.subarray(raw.length - length);
+      if (this.#decodePrefix(suffix, suffix.length).length === 0) return length;
+    }
+    return 0;
   }
 
   #evict(): void {
@@ -84,10 +96,56 @@ export class OutputCollector {
     this.#droppedBytes += part.rawBytes;
   }
 
-  #append(text: string, rawBytes: number): void {
+  #trimHead(part: TextPart, textBytes: number, newlines: number): void {
+    const raw = part.raw;
+    if (raw === null) {
+      this.#evict();
+      return;
+    }
+    // Find the first decoder emission that pays both clipping debts. A native
+    // decode can emit replacement + ASCII together, or emit a replacement
+    // while buffering the next scalar. Keep those same emission boundaries.
+    const enough = (length: number) => {
+      const prefix = this.#decodePrefix(raw, length);
+      return (
+        encoder.encode(prefix).length >= textBytes &&
+        prefix.split("\n").length - 1 >= newlines
+      );
+    };
+    let high = Math.min(raw.length, Math.max(4, textBytes));
+    while (high < raw.length && !enough(high))
+      high = Math.min(raw.length, high * 2);
+    let low = 0;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (enough(middle)) high = middle;
+      else low = middle + 1;
+    }
+    const prefix = this.#decodePrefix(raw, low);
+    if (prefix.length === part.text.length) {
+      this.#evict();
+      return;
+    }
+    const cut = low - this.#pendingLength(raw.subarray(0, low));
+    const removedBytes = encoder.encode(prefix).length;
+    const removedLines = prefix.split("\n").length - 1;
+    part.raw = raw.slice(cut);
+    // Decode the bounded remainder anew so a sliced string cannot retain the
+    // larger temporary chunk. raw.slice also releases its original buffer.
+    part.text = this.#decodePrefix(part.raw, part.raw.length);
+    part.rawBytes -= cut;
+    part.textBytes -= removedBytes;
+    part.newlines -= removedLines;
+    this.#textBytes -= removedBytes;
+    this.#newlines -= removedLines;
+    this.#droppedBytes += cut;
+  }
+
+  #append(text: string, rawBytes: number, raw: Uint8Array | null): void {
     if (text.length === 0) return;
     const part = {
       text,
+      raw,
       rawBytes,
       textBytes: encoder.encode(text).length,
       newlines: text.split("\n").length - 1,
@@ -97,7 +155,15 @@ export class OutputCollector {
     this.#size++;
     this.#textBytes += part.textBytes;
     this.#newlines += part.newlines;
-    while (this.#textBytes > capacity || this.#newlines >= 200) this.#evict();
+    while (this.#textBytes > capacity || this.#newlines >= 200) {
+      const head = this.#parts[this.#head];
+      if (head === undefined) throw new Error("Missing output ring entry");
+      const bytesToDrop = Math.max(0, this.#textBytes - capacity);
+      const linesToDrop = Math.max(0, this.#newlines - 199);
+      if (head.textBytes <= bytesToDrop || head.newlines < linesToDrop)
+        this.#evict();
+      else this.#trimHead(head, bytesToDrop, linesToDrop);
+    }
   }
 
   snapshot() {
@@ -134,8 +200,8 @@ export class OutputCollector {
     this.#closed = true;
     for (const producer of [this.#producers.stdout, this.#producers.stderr]) {
       const text = producer.decoder.decode();
-      this.#append(text, producer.pendingBytes);
-      producer.pendingBytes = 0;
+      this.#append(text, producer.pending.length, null);
+      producer.pending = new Uint8Array(0);
       if (text.length > 0) this.#dirty = true;
     }
     return this.#update();
@@ -160,7 +226,7 @@ export class OutputCollector {
     this.#dirty = false;
     for (const producer of [this.#producers.stdout, this.#producers.stderr]) {
       producer.decoder.decode();
-      producer.pendingBytes = 0;
+      producer.pending = new Uint8Array(0);
     }
   }
 }

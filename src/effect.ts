@@ -28,6 +28,7 @@ export type {
   SandboxRequest,
 };
 export type { ExecutionOptions } from "./execute-tool.js";
+export { forageDiscoveryInstructions } from "./execute-tool.js";
 export type {
   Access,
   AccessContext,

@@ -163,6 +163,28 @@ async function callSave(
     : { result: undefined, error: outcome?.reason };
 }
 
+it("validates readonly host JSON with a Standard output schema", async () => {
+  const output: Schema.Json = Object.freeze({
+    rows: Object.freeze([Object.freeze({ saved: true })]),
+  });
+  const links = Mycelium.module({
+    id: "links",
+    operations: {
+      save: Mycelium.operation({
+        input: z.object({ url: z.string() }),
+        output: z.json(),
+        execute: (): Promise<Schema.Json> => Promise.resolve(output),
+      }),
+    },
+  });
+  const { result, error } = await callSave(links, {
+    url: "https://shiit.app/",
+  });
+  expect(error).toBeUndefined();
+  expect(result).toEqual({ rows: [{ saved: true }] });
+  expect(Object.isFrozen(output)).toBe(true);
+});
+
 it("keeps a throwing Effect filter a host error, never model-visible invalid input", async () => {
   const leaky = Schema.String.check(
     Schema.makeFilter(() => {
