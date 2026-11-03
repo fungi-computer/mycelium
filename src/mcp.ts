@@ -20,6 +20,7 @@ import {
 } from "@modelcontextprotocol/server";
 import * as Schema from "effect/Schema";
 import type { AccessOptions, ConfirmRequest } from "./access.js";
+import { confirmationMessage } from "./internal/confirmation-summary.js";
 
 /** Admission is required on every HTTP request, including notifications. */
 export type McpAuthentication =
@@ -185,7 +186,7 @@ export function createMcp(
                   method: "elicitation/create",
                   params: {
                     mode: "form",
-                    message: `Allow ${approval.module}.${approval.operation} (${approval.access})?`,
+                    message: confirmationMessage(approval),
                     requestedSchema: {
                       type: "object",
                       properties: {

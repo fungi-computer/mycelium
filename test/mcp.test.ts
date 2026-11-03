@@ -740,3 +740,93 @@ it.each([404, 429] as const)(
     }
   },
 );
+
+it("shows a bounded, redacted view of the call in the approval prompt", async () => {
+  const module = Mycelium.module({
+    id: "workspace",
+    name: "workspace",
+    operations: {
+      exec: Mycelium.operation({
+        confirm: true,
+        input: z.looseObject({}),
+        execute: () => Promise.resolve(true),
+      }),
+    },
+  });
+  const inputs = [
+    { command: "cat note.txt" },
+    { command: "rm note.txt" },
+    {
+      command: "x".repeat(5000),
+      env: { TOKEN: "sk-live-secret" },
+      apiKey: "sk-live-secret",
+    },
+  ];
+  const mcp = createMcp({
+    authenticate: () =>
+      Promise.resolve({
+        kind: "admitted",
+        principal: {
+          actor: { kind: "member", memberId: "owner:one" },
+          role: "owner",
+        },
+      }),
+    catalog: createMcpCatalog({
+      load: () =>
+        Promise.resolve({
+          instructions: "",
+          grants: { workspace: "write" },
+          sources: [
+            {
+              id: "computers",
+              acquire: () =>
+                Promise.resolve({
+                  snapshot: { version: "unchanged", modules: [module] },
+                  release: () => Promise.resolve(),
+                }),
+            },
+          ],
+        }),
+      sandbox: directSandbox(async (bindings) => {
+        const exec = bindings.workspace?.exec;
+        if (exec === undefined) throw new Error("Missing exec");
+        let result: unknown;
+        for (const input of inputs) result = await exec(input);
+        return result;
+      }),
+    }),
+  });
+  const client = new Client(
+    { name: "Approving client", version: "1" },
+    { capabilities: { elicitation: { form: {} } } },
+  );
+  const prompts: string[] = [];
+  client.setRequestHandler("elicitation/create", (request) => {
+    prompts.push(request.params.message);
+    return Promise.resolve({
+      action: "accept",
+      content: { approve: true },
+    });
+  });
+  const transport = new StreamableHTTPClientTransport(
+    new URL("https://mcp.test/mcp"),
+    { fetch: (input, init) => mcp.handleRequest(new Request(input, init)) },
+  );
+  try {
+    await client.connect(transport);
+    await client.callTool({ name: "execute", arguments: { code: "run" } });
+    expect(prompts).toHaveLength(3);
+    for (const prompt of prompts)
+      expect(prompt).toContain("workspace.exec (write)");
+    expect(prompts[0]).toContain("cat note.txt");
+    expect(prompts[1]).toContain("rm note.txt");
+    expect(prompts[0]).not.toEqual(prompts[1]);
+    expect(prompts[2]).not.toContain("sk-live-secret");
+    expect(prompts[2]).not.toContain("x".repeat(500));
+    expect(prompts[2]?.length).toBeLessThan(1000);
+    expect(prompts[2]).toMatch(/hidden|truncated/);
+  } finally {
+    await client.close();
+    await mcp.close();
+  }
+});

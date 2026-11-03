@@ -1,5 +1,17 @@
 # @fungi.computer/mycelium
 
+## 0.3.4
+
+### Patch Changes
+
+- Changes since 0.3.3:
+
+  - fix(turbo): lint waits for the package's own build
+  - fix(mycelium): show a bounded, redacted call in MCP confirmation prompts
+
+- @fungi.computer/puffball@0.5.1
+  - @fungi.computer/forage@0.3.1
+
 ## 0.3.3
 
 ### Patch Changes
