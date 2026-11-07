@@ -3863,72 +3863,80 @@ describe("Mycelium capability plane", () => {
     }
   });
 
-  it("reports the deadline cause, not a generic one, when the dying sandbox fails on the same abort", async () => {
-    // A real sandbox adapter can reject with a generic, non-typed failure the
-    // instant its invocation deadline aborts it (e.g. an in-flight dispatch
-    // torn down mid-teardown). That failure racing the deadline's own report
-    // must not win: the agent needs "the deadline fired" rather than
-    // whatever side effect of the abort reached it first.
-    const result = await Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function* () {
-          const runtime = yield* makeEffect({
-            modules: [],
-            execution: { timeoutMs: 100, abortGraceMs: 50 },
-            sandbox: {
-              execute: (_request, signal: AbortSignal) =>
-                Effect.callback<never, SandboxFailure>((resume) => {
-                  const onAbort = () => {
-                    resume(
-                      Effect.fail(
-                        new Unknown({
-                          rawCause: new Error("adapter torn down"),
-                        }),
-                      ),
-                    );
-                  };
-                  if (signal.aborted) onAbort();
-                  else
-                    signal.addEventListener("abort", onAbort, { once: true });
-                  return Effect.sync(() => {
-                    signal.removeEventListener("abort", onAbort);
-                  });
+  it.each(["success", "failure"] as const)(
+    "reports the deadline cause when the dying sandbox returns %s on the same abort",
+    async (outcome) => {
+      // An adapter can complete or fail while abort tears down its dispatch.
+      // Neither result may replace the deadline already decided by Mycelium.
+      const reported: string[] = [];
+      const result = await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const runtime = yield* makeEffect({
+              modules: [],
+              execution: { timeoutMs: 100, abortGraceMs: 50 },
+              onSandboxFailure: (event) =>
+                Effect.sync(() => {
+                  reported.push(event.tag);
                 }),
-            },
-          });
-          const lease = yield* runtime.acquire();
-          const prepared = yield* prepareTool(
-            lease.executeTool,
-            "race-deadline-vs-generic-failure",
-            "return never()",
-          );
-          const executionFiber = yield* Effect.forkChild(
-            Effect.exit(Stream.runCollect(prepared.execute())),
-          );
-          yield* TestClock.adjust("100 millis");
-          return yield* Fiber.join(executionFiber);
-        }),
-      ).pipe(Effect.provide(TestClock.layer())),
-    );
-
-    expect(Exit.isFailure(result)).toBe(true);
-    const failure = Exit.isFailure(result)
-      ? Cause.findErrorOption(result.cause)
-      : Option.none();
-    expect(Option.isSome(failure)).toBe(true);
-    if (Option.isSome(failure)) {
-      expect(failure.value).toMatchObject({
-        _tag: "MuleError",
-        phase: "tool",
-      });
-      expect(failure.value).toHaveProperty(
-        "message",
-        expect.stringMatching(
-          /^execute hit its 100 ms deadline after 100 ms; split the work or persist progress \(ref /u,
-        ),
+              sandbox: {
+                execute: (_request, signal: AbortSignal) =>
+                  Effect.callback<SandboxValue, SandboxFailure>((resume) => {
+                    const onAbort = () => {
+                      resume(
+                        outcome === "success"
+                          ? Effect.succeed(null)
+                          : Effect.fail(
+                              new Unknown({
+                                rawCause: new Error("adapter torn down"),
+                              }),
+                            ),
+                      );
+                    };
+                    if (signal.aborted) onAbort();
+                    else
+                      signal.addEventListener("abort", onAbort, { once: true });
+                    return Effect.sync(() => {
+                      signal.removeEventListener("abort", onAbort);
+                    });
+                  }),
+              },
+            });
+            const lease = yield* runtime.acquire();
+            const prepared = yield* prepareTool(
+              lease.executeTool,
+              "race-deadline-vs-sandbox-settlement",
+              "return never()",
+            );
+            const executionFiber = yield* Effect.forkChild(
+              Effect.exit(Stream.runCollect(prepared.execute())),
+            );
+            yield* TestClock.adjust("100 millis");
+            return yield* Fiber.join(executionFiber);
+          }),
+        ).pipe(Effect.provide(TestClock.layer())),
       );
-    }
-  });
+
+      expect(Exit.isFailure(result)).toBe(true);
+      expect(reported).toEqual(["DeadlineExceeded"]);
+      const failure = Exit.isFailure(result)
+        ? Cause.findErrorOption(result.cause)
+        : Option.none();
+      expect(Option.isSome(failure)).toBe(true);
+      if (Option.isSome(failure)) {
+        expect(failure.value).toMatchObject({
+          _tag: "MuleError",
+          phase: "tool",
+        });
+        expect(failure.value).toHaveProperty(
+          "message",
+          expect.stringMatching(
+            /^execute hit its 100 ms deadline after 100 ms; split the work or persist progress \(ref /u,
+          ),
+        );
+      }
+    },
+  );
 });
 
 it("hands the runtime's Session to every source acquisition, and none to session-free hosts", async () => {

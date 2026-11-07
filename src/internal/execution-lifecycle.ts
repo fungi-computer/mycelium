@@ -577,28 +577,10 @@ export function runExecution(
             return yield* interruptBacking(child).pipe(
               Effect.andThen(Effect.fail(refusal)),
             );
-          if (first.kind === "settled") {
+          // A child settling during abort cannot replace the decided outcome.
+          if (first.kind === "settled" && cancellation === undefined) {
             return yield* Effect.matchCauseEffectEager(first.exit, {
-              onFailure: (cause) =>
-                // A cancellation or deadline was already decided before this
-                // fiber settled: the sandbox's own failure is very likely a
-                // side effect of that abort tearing it down (e.g. a rejected
-                // in-flight fetch once disposal starts), not independent
-                // signal. Report the actionable cancellation cause instead of
-                // whatever generic failure teardown produced.
-                cancellation === undefined
-                  ? Effect.failCause(cause)
-                  : elapsedSince(startedAt).pipe(
-                      Effect.flatMap((elapsedMs) =>
-                        Effect.fail(
-                          executionFailure(
-                            cancellation,
-                            request.policy.timeoutMs,
-                            elapsedMs,
-                          ),
-                        ),
-                      ),
-                    ),
+              onFailure: Effect.failCause,
               onSuccess: (value) =>
                 Effect.try({
                   try: () => serializeSandboxValue(value),

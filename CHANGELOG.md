@@ -1,5 +1,19 @@
 # @fungi.computer/mycelium
 
+## 0.3.5
+
+### Patch Changes
+
+- Changes since 0.3.4:
+
+  - fix(mycelium): preserve deadline outcome when abort completes work
+  - fix(oyster): qualify the packed dependency inventory for strangers
+
+- Updated dependencies
+  - @fungi.computer/mule@0.2.3
+  - @fungi.computer/puffball@0.5.2
+  - @fungi.computer/forage@0.3.2
+
 ## 0.3.4
 
 ### Patch Changes

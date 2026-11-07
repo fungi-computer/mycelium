@@ -1,6 +1,6 @@
 {
   "name": "@fungi.computer/mycelium",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "author": "Levi <levi@technomancy.dev>",
   "description": "Effect-native scoped capability lifecycle with a Zod-authored execute door",
   "type": "module",

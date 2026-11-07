@@ -25,6 +25,8 @@
     "package/dist/internal/build-identity.js",
     "package/dist/internal/build-identity.node.d.ts",
     "package/dist/internal/build-identity.node.js",
+    "package/dist/internal/confirmation-summary.d.ts",
+    "package/dist/internal/confirmation-summary.js",
     "package/dist/internal/execution-lifecycle.d.ts",
     "package/dist/internal/execution-lifecycle.js",
     "package/dist/internal/host-cores.d.ts",
