@@ -1,5 +1,12 @@
 # @fungi.computer/mycelium
 
+## 0.3.8
+
+### Patch Changes
+
+- @fungi.computer/puffball@0.5.5
+  - @fungi.computer/forage@0.3.5
+
 ## 0.3.7
 
 ### Patch Changes
