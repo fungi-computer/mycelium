@@ -20,9 +20,28 @@ const available = z
       ),
     ),
   );
+// Node's availableParallelism() also honours a cgroup CPU quota, so a capped CI
+// runner sees fewer CPUs than its affinity lists. Node itself, across the whole
+// affinity, reports the ceiling a policy can observe.
+const ceiling = z.coerce
+  .number()
+  .int()
+  .positive()
+  .parse(
+    execFileSync(
+      process.execPath,
+      ["-p", "require('node:os').availableParallelism()"],
+      { encoding: "utf8" },
+    ),
+  );
 const ordinary =
-  available.length >= 4 ? { cores: 4, expected: 4 } : { cores: 1, expected: 2 };
-const wider = available.length >= 32 ? { cores: 32, expected: 32 } : ordinary;
+  available.length >= 4 && ceiling >= 4
+    ? { cores: 4, expected: 4 }
+    : { cores: 1, expected: 2 };
+const wider =
+  available.length >= 32 && ceiling >= 32
+    ? { cores: 32, expected: 32 }
+    : ordinary;
 const observation = z.strictObject({
   availableBefore: z.int().positive(),
   availableAfter: z.int().positive(),

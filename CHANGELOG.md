@@ -1,5 +1,16 @@
 # @fungi.computer/mycelium
 
+## 0.3.7
+
+### Patch Changes
+
+- Changes since 0.3.6:
+
+  - fix(docs): build each package before its own docs check
+
+- @fungi.computer/puffball@0.5.4
+  - @fungi.computer/forage@0.3.4
+
 ## 0.3.6
 
 ### Patch Changes
