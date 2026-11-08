@@ -1,14 +1,20 @@
 # Mycelium (`@fungi.computer/mycelium`)
 
-Mycelium gives an Agent typed operations through one `execute` tool. It
-validates operations, acquires a coherent capability snapshot and releases it
-when the run ends. You can also execute a known operation without a model.
-
-## Set up
+Mycelium gives an Agent typed operations through one `execute` tool, and can
+serve the same catalog over MCP. It validates operations, acquires a coherent
+capability snapshot and releases it when the run ends. You can also execute a
+known operation without a model.
 
 ```sh
-npm install @fungi.computer/mycelium
+npm install @fungi.computer/mycelium zod effect
 ```
+
+Copy the quick start below into an ESM TypeScript file and run it with Node 24:
+it registers one Zod operation and calls it without a model provider. Mycelium
+does not evaluate code itself. Your host supplies the sandbox that does, so the
+quick start uses a test-only adapter that is not isolation.
+
+## Set up
 
 The package ships ESM only. Runtime dependencies include Zod, Effect, `acorn`,
 Cloudflare Code Mode, the MCP server SDK, [Cairn](../cairn/README.md),
