@@ -1,3 +1,4 @@
+import type { TeamRole } from "@fungi.computer/cairn/team-role";
 import {
   Client,
   StreamableHTTPClientTransport,
@@ -61,7 +62,7 @@ it("one principal cannot exhaust another principal's MCP session allowance", asy
 it.each(["demoted", "suspended"])(
   "refuses a member %s while the MCP approval prompt is open",
   async (change) => {
-    let role: "owner" | "member" = "owner";
+    let role: TeamRole = "owner";
     let admitted = true;
     let calls = 0;
     let asked = 0;

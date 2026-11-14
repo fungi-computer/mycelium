@@ -1,10 +1,11 @@
+import type { TeamRole } from "@fungi.computer/cairn/team-role";
 import type { HostActor } from "@fungi.computer/puffball/app-method-runtime";
 
 /** Authenticated credential identity, scoped by its host. Never a bearer token. */
 export type McpPrincipal =
   | Readonly<{
       actor: Extract<HostActor, { kind: "member" }>;
-      role: "owner" | "member";
+      role: TeamRole;
     }>
   | Readonly<{ actor: Exclude<HostActor, { kind: "member" }> }>;
 

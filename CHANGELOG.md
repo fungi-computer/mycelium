@@ -1,5 +1,20 @@
 # @fungi.computer/mycelium
 
+## 0.4.0
+
+### Minor Changes
+
+- Changes since 0.3.11:
+
+  - feat(oyster): app callers carry owner, admin or member from the shared role
+  - feat(oyster): carry the shared TeamRole through Apps and Oyster
+
+### Patch Changes
+
+- Updated dependencies
+  - @fungi.computer/puffball@0.9.0
+  - @fungi.computer/forage@0.3.9
+
 ## 0.3.11
 
 ### Patch Changes

@@ -21,7 +21,7 @@ type McpPrincipal =
           kind: "member";
         }
       >;
-      role: "owner" | "member";
+      role: TeamRole;
     }>
   | Readonly<{
       actor: Exclude<
