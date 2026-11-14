@@ -78,25 +78,16 @@
     "THIRD_PARTY_NOTICES"
   ],
   "scripts": {
-    "lint": "eslint src test --max-warnings=0 && ../../node_modules/.bin/oxlint --config ../../oxlint.config.ts --deny-warnings src test",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p src/workers/tsconfig.json --noEmit",
     "build": "pnpm run clean && tsc -p tsconfig.build.json && tsc -p src/workers/tsconfig.json",
     "clean": "node --input-type=module --eval \"import { rm } from 'node:fs/promises'; await rm('dist', { recursive: true, force: true });\"",
-    "test": "vitest run && pnpm run test:workers",
-    "test:workers": "vitest run --config test/vitest.workers.config.mts",
-    "docs": "tsx ../../tooling/repository/src/docs/cli.ts check --root ../..",
-    "docs:write": "tsx ../../tooling/repository/src/docs/cli.ts write --root ../..",
-    "pack": "pnpm run build && node scripts/stamp-build.mjs && mkdir -p ../../.botanical/mycelium-pack && pnpm pack --pack-destination ../../.botanical/mycelium-pack",
-    "smoke": "node --input-type=module -e \"import('./dist/index.js').then(({Mycelium}) => { if (!Mycelium) process.exit(1); })\"",
-    "stranger": "tsx ../../tooling/repository/src/artifacts/cli.ts --repo-root ../.. .",
-    "format:check": "node ../../tooling/repository/scripts/format-package-check.mjs",
-    "lint:anti-slop": "node ../../tooling/repository/scripts/lint-package-anti-slop.mjs"
+    "smoke": "node --input-type=module -e \"import('./dist/index.js').then(({Mycelium}) => { if (!Mycelium) process.exit(1); })\""
   },
   "dependencies": {
-    "@fungi.computer/cairn": "workspace:*",
-    "@fungi.computer/forage": "workspace:*",
-    "@fungi.computer/mule": "workspace:*",
-    "@fungi.computer/puffball": "workspace:*",
+    "@fungi.computer/cairn": "0.1.0",
+    "@fungi.computer/forage": "0.3.9",
+    "@fungi.computer/mule": "0.2.3",
+    "@fungi.computer/puffball": "0.9.0",
     "effect": "4.0.2",
     "zod": "4.4.3",
     "acorn": "8.18.0",
