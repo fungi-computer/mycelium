@@ -1,5 +1,12 @@
 # @fungi.computer/mycelium
 
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @fungi.computer/mule@0.2.5
+
 ## 0.4.1
 
 ### Patch Changes
