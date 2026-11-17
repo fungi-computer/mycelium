@@ -1,6 +1,6 @@
 {
   "name": "@fungi.computer/mycelium",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "author": "Levi <levi@technomancy.dev>",
   "description": "Effect-native scoped capability lifecycle with a Zod-authored execute door",
   "type": "module",
@@ -85,9 +85,9 @@
   },
   "dependencies": {
     "@fungi.computer/cairn": "0.1.0",
-    "@fungi.computer/forage": "0.3.11",
+    "@fungi.computer/forage": "0.3.12",
     "@fungi.computer/mule": "0.2.5",
-    "@fungi.computer/puffball": "0.10.0",
+    "@fungi.computer/puffball": "0.11.0",
     "effect": "4.0.2",
     "zod": "4.4.3",
     "acorn": "8.18.0",
