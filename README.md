@@ -1,33 +1,23 @@
 # Mycelium (`@fungi.computer/mycelium`)
 
-Mycelium gives an Agent typed operations through one `execute` tool, and can
-serve the same catalog over MCP. It validates operations, acquires a coherent
-capability snapshot and releases it when the run ends. You can also execute a
-known operation without a model.
+Mycelium gives an AI agent your app's operations through one tool, called
+`execute`. The same list can also be served to other tools over MCP.
 
-```sh
-npm install @fungi.computer/mycelium zod effect
+```mermaid
+flowchart LR
+  Modules[Your operations, typed with Zod] --> Mycelium
+  Agent[Agent] -->|one execute tool| Mycelium
+  Mycelium -->|runs inside your sandbox| Sandbox[Host sandbox]
+  Mycelium -.->|same catalog| MCP[MCP clients]
 ```
 
-Copy the quick start below into an ESM TypeScript file and run it with Node 24:
-it registers one Zod operation and calls it without a model provider. Mycelium
-does not evaluate code itself. Your host supplies the sandbox that does, so the
-quick start uses a test-only adapter that is not isolation.
+## Quick start
 
-## Set up
+Install it:
 
-The package ships ESM only. Runtime dependencies include Zod, Effect, `acorn`,
-Cloudflare Code Mode, the MCP server SDK, [Cairn](../cairn/README.md),
-[Forage](../forage/README.md), [Mule](../mule/README.md) and
-[Puffball](../puffball/README.md), all installed automatically. The root
-entrypoint is the Promise host facade. `@fungi.computer/mycelium/effect`
-supplies the scoped Effect API. Both produce an Effect-native Mule tool. The
-`./sandbox-guest`, `./sandbox-wire`, `./sandbox-failure`, `./sandbox-boundary`,
-and `./semaphore-transition` subpaths support a host's sandbox adapter. A host
-supplies the sandbox that actually evaluates code and enforces isolation,
-external access and cancellation.
-
-## Quick start without a model
+```sh
+npm install @fungi.computer/mycelium
+```
 
 This example registers `demo.ping`, executes one known binding and prints
 `{"value":"pong"}`. The direct callback deliberately ignores submitted code. It
@@ -88,6 +78,55 @@ The [public-import fixture](test/stranger/runtime.mjs) uses the same
 known-binding pattern. A real evaluator must implement the public sandbox
 contract. Its request carries code, execution identity, limits and admitted
 bindings. Do not replace it with evaluation in the host's privileged process.
+
+## Common tasks
+
+### Register and call an operation
+
+The Quick start registers `demo.ping` and executes it with no model.
+
+### Find and describe operations
+
+See [Operations and discovery](#operations-and-discovery).
+
+### Control who may call what
+
+See [Access labels and grants](#access-labels-and-grants).
+
+### Group operations by namespace
+
+See [Nested namespaces](#nested-namespaces).
+
+## Reference
+
+### Overview
+
+Mycelium gives an Agent typed operations through one `execute` tool, and can
+serve the same catalog over MCP. It validates operations, acquires a coherent
+capability snapshot and releases it when the run ends. You can also execute a
+known operation without a model.
+
+```sh
+npm install @fungi.computer/mycelium zod effect
+```
+
+Copy the quick start below into an ESM TypeScript file and run it with Node 24:
+it registers one Zod operation and calls it without a model provider. Mycelium
+does not evaluate code itself. Your host supplies the sandbox that does, so the
+quick start uses a test-only adapter that is not isolation.
+
+## Set up
+
+The package ships ESM only. Runtime dependencies include Zod, Effect, `acorn`,
+Cloudflare Code Mode, the MCP server SDK, [Cairn](../cairn/README.md),
+[Forage](../forage/README.md), [Mule](../mule/README.md) and
+[Puffball](../puffball/README.md), all installed automatically. The root
+entrypoint is the Promise host facade. `@fungi.computer/mycelium/effect`
+supplies the scoped Effect API. Both produce an Effect-native Mule tool. The
+`./sandbox-guest`, `./sandbox-wire`, `./sandbox-failure`, `./sandbox-boundary`,
+and `./semaphore-transition` subpaths support a host's sandbox adapter. A host
+supplies the sandbox that actually evaluates code and enforces isolation,
+external access and cancellation.
 
 ## Operations and discovery
 
