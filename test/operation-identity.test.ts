@@ -75,3 +75,57 @@ it("numbers operation calls in invocation order across methods and modules, rese
     await runtime.close();
   }
 });
+
+it("gives operations the runtime's session id, and none when the runtime has no session", async () => {
+  const seen = new Map<string, string | undefined>();
+  const build = (label: string, sessionId: string | null) => {
+    const base = {
+      modules: [
+        Mycelium.module({
+          id: "notes",
+          operations: {
+            read: Mycelium.operation({
+              input: z.strictObject({}),
+              output: z.null(),
+              execute: (_input, context) => {
+                seen.set(label, context.sessionId);
+                return Promise.resolve(null);
+              },
+            }),
+          },
+        }),
+      ],
+      sandbox: directSandbox(async (bindings) => {
+        await bindings.notes?.read?.({});
+        return null;
+      }),
+    };
+    return Mycelium.make(
+      sessionId === null ? base : { ...base, session: { sessionId } },
+    );
+  };
+  for (const [label, session] of [
+    ["with", "session_one"],
+    ["without", null],
+  ] as const) {
+    const runtime = await build(label, session);
+    const lease = await runtime.acquire();
+    try {
+      const prepared = await Effect.runPromise(
+        lease.executeTool.prepare({
+          type: "toolCall",
+          id: `call-${label}`,
+          name: "execute",
+          arguments: { code: "read" },
+        }),
+      );
+      await Effect.runPromise(Stream.runCollect(prepared.execute()));
+    } finally {
+      await lease.release();
+      await runtime.close();
+    }
+  }
+  expect(seen.get("with")).toBe("session_one");
+  expect(seen.has("without")).toBe(true);
+  expect(seen.get("without")).toBeUndefined();
+});

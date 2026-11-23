@@ -1,5 +1,18 @@
 # @fungi.computer/mycelium
 
+## 0.5.0
+
+### Minor Changes
+
+- Changes since 0.4.14:
+
+  - feat(mycelium): give operations the session id of their execute
+
+### Patch Changes
+
+- Updated dependencies
+  - @fungi.computer/mule@0.4.0
+
 ## 0.4.14
 
 ### Patch Changes

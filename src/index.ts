@@ -129,6 +129,12 @@ export type InvocationContext = Readonly<{
    * outside execute-bound invocation; not an authorization or replay grant.
    */
   operationOrdinal?: number;
+  /**
+   * Session this execute runs for, when the runtime was given one. Lets a host
+   * key durable records of an operation's work to its session; absent for
+   * session-free runtimes and direct calls. Not an authorization.
+   */
+  sessionId?: string;
   /** Enclosing sandbox program supplied by the host; never an operation argument. */
   toolCallCode?: string;
   /** Absolute epoch-millisecond execute deadline; null for direct calls outside execute. */

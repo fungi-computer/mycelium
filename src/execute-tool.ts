@@ -105,17 +105,17 @@ function operationBindings(
     const group =
       groups.get(namespace) ??
       new Map<string, (input: SandboxValue) => Promise<SandboxValue>>();
-    group.set(operationName, (input) =>
-      guardedInvoke(
+    group.set(operationName, (input) => {
+      const numbered = { ...context, operationOrdinal: nextOperationOrdinal++ };
+      const invocation =
+        sessionId === null ? numbered : { ...numbered, sessionId };
+      return guardedInvoke(
         entry,
-        Object.freeze({
-          ...context,
-          operationOrdinal: nextOperationOrdinal++,
-        }),
+        Object.freeze(invocation),
         access,
         sessionId,
-      )(input),
-    );
+      )(input);
+    });
     groups.set(namespace, group);
   }
   return Object.freeze(
