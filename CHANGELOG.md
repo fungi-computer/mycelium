@@ -1,5 +1,21 @@
 # @fungi.computer/mycelium
 
+## 0.5.1
+
+### Patch Changes
+
+- Changes since 0.5.0:
+
+  - fix(deps): update the Cloudflare Vitest plugin to the release that exits
+    cleanly
+
+- Updated dependencies
+- Updated dependencies
+  - @fungi.computer/cairn@0.1.1
+  - @fungi.computer/puffball@0.15.2
+  - @fungi.computer/mule@0.4.1
+  - @fungi.computer/forage@0.5.4
+
 ## 0.5.0
 
 ### Minor Changes
