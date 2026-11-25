@@ -501,14 +501,15 @@ new DispatchLost(args): DispatchLost;
 
 ###### Parameters
 
-| Parameter        | Type                                                                                                             |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `args`           | \{ `ref?`: `string`; `elapsedMs`: `number`; `transport`: `string`; `errno?`: `string`; `rawCause`: `unknown`; \} |
-| `args.ref?`      | `string`                                                                                                         |
-| `args.elapsedMs` | `number`                                                                                                         |
-| `args.transport` | `string`                                                                                                         |
-| `args.errno?`    | `string`                                                                                                         |
-| `args.rawCause`  | `unknown`                                                                                                        |
+| Parameter        | Type                                                                                                                                  | Description                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `args`           | \{ `ref?`: `string`; `elapsedMs`: `number`; `transport`: `string`; `errno?`: `string`; `reason?`: `string`; `rawCause`: `unknown`; \} | -                                                                  |
+| `args.ref?`      | `string`                                                                                                                              | -                                                                  |
+| `args.elapsedMs` | `number`                                                                                                                              | -                                                                  |
+| `args.transport` | `string`                                                                                                                              | -                                                                  |
+| `args.errno?`    | `string`                                                                                                                              | -                                                                  |
+| `args.reason?`   | `string`                                                                                                                              | Plain words for why the transport gave up, safe to show the Agent. |
+| `args.rawCause`  | `unknown`                                                                                                                             | -                                                                  |
 
 ###### Returns
 
@@ -522,6 +523,8 @@ Data.TaggedError("DispatchLost")<
     readonly elapsedMs: number;
     readonly transport: string;
     readonly errno?: string | undefined;
+    / Plain words for why the transport gave up, safe to show the Agent. /
+    readonly reason?: string | undefined;
     readonly rawCause: unknown;
   }
 >.constructor
@@ -575,6 +578,20 @@ readonly optional errno?: string;
 
 ```ts
 Data.TaggedError("DispatchLost").errno;
+```
+
+##### reason?
+
+```ts
+readonly optional reason?: string;
+```
+
+Plain words for why the transport gave up, safe to show the Agent.
+
+###### Inherited from
+
+```ts
+Data.TaggedError("DispatchLost").reason;
 ```
 
 ##### rawCause

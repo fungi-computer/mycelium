@@ -66,6 +66,7 @@ export const sandboxWireSchema = z.discriminatedUnion("ok", [
         elapsedMs: z.number().nonnegative(),
         transport: z.string(),
         errno: z.string().optional(),
+        reason: z.string().max(200).optional(),
         rawCause: z.json(),
       }),
       z.strictObject({
@@ -186,6 +187,7 @@ export function sandboxFailureWire(
         rawCause: sandboxOperatorValue(failure.rawCause),
       };
       if (failure.errno !== undefined) error.errno = failure.errno;
+      if (failure.reason !== undefined) error.reason = failure.reason;
       break;
     case "SandboxCrashed":
       error = {

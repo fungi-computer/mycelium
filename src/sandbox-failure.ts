@@ -55,6 +55,8 @@ export class DispatchLost extends Data.TaggedError("DispatchLost")<
     readonly elapsedMs: number;
     readonly transport: string;
     readonly errno?: string | undefined;
+    /** Plain words for why the transport gave up, safe to show the Agent. */
+    readonly reason?: string | undefined;
     readonly rawCause: unknown;
   }
 > {}
@@ -176,6 +178,7 @@ export function referenceSandboxFailure(
         elapsedMs: failure.elapsedMs,
         transport: failure.transport,
         errno: failure.errno,
+        reason: failure.reason,
         rawCause: failure.rawCause,
         ref,
       });
@@ -243,7 +246,7 @@ export function sandboxFailureMessage(
           : "Execution was cancelled";
       break;
     case "DispatchLost":
-      text = `The sandbox lost contact after ${String(failure.elapsedMs)} ms; a running command may still be running; check its effects before retrying`;
+      text = `The sandbox lost contact after ${String(failure.elapsedMs)} ms${failure.reason === undefined ? "" : ` (${failure.reason})`}; a running command may still be running; check its effects before retrying`;
       break;
     case "SandboxCrashed":
       text =

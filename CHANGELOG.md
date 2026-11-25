@@ -1,5 +1,14 @@
 # @fungi.computer/mycelium
 
+## 0.5.3
+
+### Patch Changes
+
+- Changes since 0.5.2:
+
+  - fix(hub): let a waiting Agent call outlast two minutes and name why its link
+    ended
+
 ## 0.5.2
 
 ### Patch Changes
