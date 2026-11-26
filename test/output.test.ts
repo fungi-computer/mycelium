@@ -13,7 +13,8 @@ import * as Stream from "effect/Stream";
 import { expect, it } from "vitest";
 import { z } from "zod";
 import { Mycelium } from "../src/index.js";
-import { make, fromTypedSandbox } from "../src/effect.js";
+import { make } from "../src/effect.js";
+import { fromTypedSandbox } from "../src/typed-sandbox.js";
 
 it.each(["throttled success", "immediate success", "immediate failure"])(
   "delivers real capability output before Mule's %s terminal",

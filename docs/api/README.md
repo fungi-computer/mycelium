@@ -22,4 +22,5 @@
 | [sandbox](sandbox.md)                           | -           |
 | [semaphore-transition](semaphore-transition.md) | -           |
 | [testing](testing.md)                           | -           |
+| [typed-sandbox](typed-sandbox.md)               | -           |
 | [workers](workers.md)                           | -           |

@@ -4,7 +4,7 @@ import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
 import * as Scope from "effect/Scope";
 
-import { fromTypedSandbox } from "./effect.js";
+import { fromTypedSandbox } from "./typed-sandbox.js";
 import type {
   AcquireOptions,
   Lease,

@@ -308,15 +308,16 @@ message without changing Mule's error contract. Unrelated foreign failures stay
 `Unknown`: do not classify diagnostic prose, unwrap arbitrary cause chains, or
 mislabel an arbitrary adapter `AbortError` as caller-authorized cancellation.
 
-An Effect host with a Promise sandbox uses `fromTypedSandbox`, which waits for
-that Promise to settle when interrupted. The concrete sandbox and broker decide
-how backing work is stopped. Hosts supply the Worker Loader binding and
-credential custody. The Workers-only `@fungi.computer/mycelium/workers` entry
-exports `createCodemodeSandbox(loader, adapter?, options?)`, a Codemode adapter
-runnable on Workers and celld. It disables guest network access, binds only the
-supplied operations, preserves typed failures and awaits the backing execution
-when cancellation cannot be acknowledged. Import this entry only in Workers
-hosts; the root and other Node entries do not load it.
+An Effect host with a Promise sandbox uses `fromTypedSandbox` (from
+`@fungi.computer/mycelium/typed-sandbox`), which waits for that Promise to
+settle when interrupted. The concrete sandbox and broker decide how backing work
+is stopped. Hosts supply the Worker Loader binding and credential custody. The
+Workers-only `@fungi.computer/mycelium/workers` entry exports
+`createCodemodeSandbox(loader, adapter?, options?)`, a Codemode adapter runnable
+on Workers and celld. It disables guest network access, binds only the supplied
+operations, preserves typed failures and awaits the backing execution when
+cancellation cannot be acknowledged. Import this entry only in Workers hosts;
+the root and other Node entries do not load it.
 
 The adapter forwards the request's existing `timeoutMs` budget as the Worker
 Loader's `cpuMs` limit, retaining any tighter loader limit. Cloudflare and celld

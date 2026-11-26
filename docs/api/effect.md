@@ -10,27 +10,6 @@
 
 ## Type Aliases
 
-### Sandbox
-
-```ts
-type Sandbox = Readonly<{
-  execute: (request, signal) => Effect.Effect<SandboxValue, SandboxFailure>;
-  adapter?: string;
-  buildSha?: string;
-}>;
-```
-
-Effect-native host seam for sandbox execution.
-
-Interrupting `execute` must not complete until the backing work has actually
-settled. Mycelium bounds that wait by the acknowledgement grace and reports
-`abort_unacknowledged` when it expires, keeping the work's source revision alive
-until it exits. A host with Promise-shaped work adapts it with
-[fromTypedSandbox](#fromtypedsandbox); `Effect.tryPromise` alone completes
-interruption without awaiting the Promise and so breaks that settlement law.
-
----
-
 ### MyceliumOptions
 
 ```ts
@@ -89,28 +68,6 @@ const forageDiscoveryInstructions: "Inside execute, call forage.search, forage.l
 Shared discovery scope for hosts offering Mycelium's execute tool.
 
 ## Functions
-
-### fromTypedSandbox()
-
-```ts
-function fromTypedSandbox(sandbox): Sandbox;
-```
-
-Adapt a Promise-shaped sandbox to the Effect seam. This is Mycelium's one
-Promise sandbox conversion: interruption waits for the host Promise to settle,
-while cancellation reaches the host through the abort signal.
-
-#### Parameters
-
-| Parameter | Type                            |
-| --------- | ------------------------------- |
-| `sandbox` | [`Sandbox`](sandbox.md#sandbox) |
-
-#### Returns
-
-[`Sandbox`](#sandbox)
-
----
 
 ### make()
 
@@ -182,6 +139,12 @@ Re-exports [SandboxBinding](sandbox.md#sandboxbinding)
 ### SandboxRequest
 
 Re-exports [SandboxRequest](sandbox.md#sandboxrequest)
+
+---
+
+### Sandbox
+
+Re-exports [Sandbox](typed-sandbox.md#sandbox)
 
 ---
 

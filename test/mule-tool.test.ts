@@ -6,7 +6,8 @@ import { expect, it } from "vitest";
 
 import type { SandboxFailureEvent } from "../src/sandbox-failure-event.js";
 import { CapabilityFailed, SandboxBusy } from "../src/sandbox-failure.js";
-import { fromTypedSandbox, make } from "../src/effect.js";
+import { make } from "../src/effect.js";
+import { fromTypedSandbox } from "../src/typed-sandbox.js";
 import {
   Mycelium,
   MAX_EXECUTION_IMAGES,

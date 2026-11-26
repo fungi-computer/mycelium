@@ -18,7 +18,8 @@ import * as TestClock from "effect/testing/TestClock";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { fromTypedSandbox, make as makeEffect } from "../src/effect.js";
+import { make as makeEffect } from "../src/effect.js";
+import { fromTypedSandbox } from "../src/typed-sandbox.js";
 import {
   Mycelium,
   MyceliumDefinitionError,

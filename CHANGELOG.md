@@ -1,5 +1,13 @@
 # @fungi.computer/mycelium
 
+## 0.5.7
+
+### Patch Changes
+
+- Changes since 0.5.6:
+
+  - perf(grove): cut the first view by about 95 KB gzip
+
 ## 0.5.6
 
 ### Patch Changes

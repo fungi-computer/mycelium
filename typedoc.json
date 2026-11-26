@@ -11,6 +11,7 @@
     "src/sandbox-guest.ts",
     "src/sandbox-wire.ts",
     "src/sandbox-failure.ts",
+    "src/typed-sandbox.ts",
     "src/sandbox-boundary.ts",
     "src/testing.ts",
     "src/workers/index.ts",
