@@ -1,5 +1,13 @@
 # @fungi.computer/mycelium
 
+## 0.5.8
+
+### Patch Changes
+
+- Updated dependencies
+  - @fungi.computer/puffball@0.18.0
+  - @fungi.computer/forage@0.6.2
+
 ## 0.5.7
 
 ### Patch Changes
