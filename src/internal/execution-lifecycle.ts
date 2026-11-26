@@ -348,6 +348,7 @@ export function runExecution(
         const invocation = {
           executionId,
           deadlineAt,
+          startedAt,
           signal: controller.signal,
           images: request.images,
         };

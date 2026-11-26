@@ -548,6 +548,7 @@ type InvocationContext = Readonly<{
   sessionId?: string;
   toolCallCode?: string;
   deadlineAt: number | null;
+  startedAt?: number;
   signal: AbortSignal;
   images?: ExecutionImages;
   output?: Readonly<{

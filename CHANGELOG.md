@@ -1,5 +1,14 @@
 # @fungi.computer/mycelium
 
+## 0.5.4
+
+### Patch Changes
+
+- Changes since 0.5.3:
+
+  - fix(hub): park a late ask before the transport cut and keep distinct asks
+    apart
+
 ## 0.5.3
 
 ### Patch Changes

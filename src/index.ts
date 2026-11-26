@@ -139,6 +139,12 @@ export type InvocationContext = Readonly<{
   toolCallCode?: string;
   /** Absolute epoch-millisecond execute deadline; null for direct calls outside execute. */
   deadlineAt: number | null;
+  /**
+   * Epoch-millisecond instant this execute started, absent for direct calls.
+   * A host that holds a call open measures its transport's own bound from here,
+   * not from the operation's start.
+   */
+  startedAt?: number;
   /** Cooperative cancellation signal owned by the active Mule run. */
   signal: AbortSignal;
   /**
